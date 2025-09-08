@@ -1,0 +1,14 @@
+Files to prepare:
+- <geometry>.vasp: the unit cell in the format of a VASP POSCAR
+- <geometry>_1mole.xyz: the molecular cluster that will be treated quantum mechanically
+- VASP run files. Put under k111 folder.
+
+Procedures:
+1. Perform VASP gamma-point calculation in the folder "k111" with PBE functional
+2. Perform Bader charge analysis by first running:
+   chgsum.pl AECCAR0 AECCAR2
+   and then running:
+   bader CHGCAR -ref CHGCAR_sum
+   This will generate the file ACF.dat that contains the number of electrons on each atom ("CHARGE").
+3. Edit the "User input" section of gen_input.py and run 
+4. Edit the "User input" section of the two gpu_compute_ewald_pot*.py and run both

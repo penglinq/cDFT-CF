@@ -1,0 +1,1095 @@
+Currently Loaded Modulefiles:
+ 1) gmp/6.2.1-gcc-13.2.0-lcnhyse <aL>             
+ 2) mpfr/4.2.0-gcc-13.2.0-yy2fkq5 <aL>            
+ 3) mpc/1.3.1-gcc-13.2.0-5kgoftq <aL>             
+ 4) zlib-ng/2.1.3-gcc-13.2.0-jetnfwa <aL>         
+ 5) zstd/1.5.5-gcc-13.2.0-t2lua3l <aL>            
+ 6) gcc/13.2.0-gcc-13.2.0-w55nxkl                 
+ 7) cmake/3.20.2-gcc-13.2.0-rp74vpv               
+ 8) libfabric/1.18.1-gcc-13.2.0-bijxar4 <aL>      
+ 9) numactl/2.0.14-gcc-13.2.0-etkf74e <aL>        
+10) openssh/8.7p1-gcc-13.2.0-g55xmkx <aL>         
+11) slurm/22.05.6-gcc-13.2.0-tchsn6y <aL>         
+12) openmpi/4.1.5-gcc-13.2.0-24q3ap2              
+13) libpciaccess/0.17-gcc-13.2.0-r2cijnn <aL>     
+14) libiconv/1.17-gcc-13.2.0-ntov4te <aL>         
+15) xz/5.4.1-gcc-13.2.0-4xkm5xo <aL>              
+16) libxml2/2.10.3-gcc-13.2.0-fr6jcjz <aL>        
+17) ncurses/6.4-gcc-13.2.0-4o2yj6n <aL>           
+18) hwloc/2.9.1-gcc-13.2.0-gzvfolk <aL>           
+19) intel-tbb/2021.9.0-gcc-13.2.0-6nwk3ml <aL>    
+20) intel-oneapi-mkl/2023.2.0-gcc-13.2.0-ohvyk7g  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+/central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF
+Thu Apr 17 10:17:28 PDT 2025
+hpc-52-17.cm.cluster
+--------------------------------------------------------------------------
+WARNING: There is at least one non-excluded one OpenFabrics device found,
+but there are no active ports detected (or Open MPI was unable to use
+them).  This is most certainly not what you wanted.  Check your
+cables, subnet manager configuration, etc.  The openib BTL will be
+ignored for this job.
+
+  Local host: hpc-52-17
+--------------------------------------------------------------------------
+Apr 17 10:17:31 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_79/generate_state.py ****
+'''
+Example input to calculate the ground state of a molecular system
+Include x2c relativistic effect
+'''
+import pyscf
+from pyscf.scf.hf import RHF
+from pyscf.dft.uks import UKS
+from pyscf.dft.gks import GKS
+from pyscf import lib
+import os, sys
+import numpy as np
+import scipy.linalg as la
+from scipy.linalg import sqrtm, eigh
+from scipy.optimize import root
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+log = lib.logger.Logger(sys.stdout, 4)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import cdft, utils
+    from stevens.project import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 32000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+    qmmm = True # add environment with classical charges
+
+    # (c)HF/DFT parameters
+    xc = 'HF' # functional
+    smearing = None # To help HF/DFT converge, try e.g. 5e-2
+    chkfname_guess = '../../gs_%s.chk'%geometry # initial guess. 'minao' for default PySCF guess; None for constrained HF; 
+                # path to a checkpoint file to restart from a SCF solution.
+                # 'project' to project from the SCF solution in a small basis to generate the initial guess
+    chkfname_small = '../gs_small_%s.chk'%geometry # checkpoint file in a small basis. Used when chkfname_guess == 'project'
+    basis_small = {'default': 'minao', 'Dy': 'cc-x2c-minao'}# the small basis associated with chkfname_small
+    change_dm_mode = 'rotate' # None: no change
+                          # 'positive_z': set the 4f block of dm so that J~(0,0,J)
+                          # 'rotate': rotate the 4f block of dm by some angles
+    atom_index = 0 # the index of central lanthanide atom
+    noise = 0 # max noise on density matrix initial guess
+
+    # constrained HF parameters for the initial guess
+    ao_shell = 'f'
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    multiplier0 = 0.1
+    dir_idx = 79
+    plane = 'random'
+    # END USER INPUT
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # generate HF/DFT initial guess
+    if chkfname_guess == 'minao':
+        mf = scf.GKS(mol).x2c()
+        dm0 = mf.get_init_guess()
+        print("Use PySCF default init guess")
+    elif chkfname_guess == 'project':
+        # project dm0 in a small basis to the larger basis 
+        dm0 = utils.project_dm_from_small_basis(mol, basis_small, chkfname_small, change_dm_mode, atom_index=atom_index,
+                occ_idx=0)
+        print("Project wavefunction in a smaller basis to the target basis as init guess")
+    else:
+        mf = scf.GKS(mol).x2c()
+        data = chkfile.load(chkfname_guess, 'scf')
+        mf.__dict__.update(data)
+        dm0 = mf.make_rdm1()
+        mf.analyze(with_meta_lowdin=False)
+        print("Load .chk file for init guess")
+    angles_from_z, direction = cdft.sample_rotation(plane, dir_idx, dir_init=(0,0,1), unit=20, return_direction=True) # the rotation angles from +z
+    if change_dm_mode is not None:  
+        dm0  = utils.change_dm_guess(mol, dm0, change_dm_mode, atom_index=atom_index, angles_from_z=angles_from_z)
+    dm0 += (np.random.rand(*(dm0.shape)) - 0.5) * noise  
+    print("J vector of initial guess", get_mj(mol, dm0, analyze=True))
+    print("target direction", direction)
+
+    # run constrained HF/DFT
+    cmf = cdft.CGKS(mol, direction, multiplier_guess=multiplier0, max_cycle=500,
+            atom_index=0, ao_shell=ao_shell, lo_chkfname=lo_chkfname, xc=xc, smearing=smearing)
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        mf = cmf._scf
+        get_hcore_original = mf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        mf.get_hcore = types.MethodType(get_hcore_mm, mf)
+        cmf._scf = mf
+    cmf.kernel(dm0=dm0)
+
+    # calculate DFT energy
+    dm = cmf._scf.make_rdm1()
+    gmf = scf.GKS(mol).x2c()
+    if xc.upper() != 'HF':
+        gmf.grids.level = 6
+        gmf.collinear = 'mcol'
+    gmf.xc = xc
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = gmf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        gmf.get_hcore = types.MethodType(get_hcore_mm, gmf)
+    print("energy with functional %s"%gmf.xc, gmf.energy_tot(dm=dm))
+    gmf = scf.GKS(mol).x2c()
+    gmf.grids.level = 6
+    gmf.collinear = 'mcol'
+    gmf.xc = 'PBE0'
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = gmf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        gmf.get_hcore = types.MethodType(get_hcore_mm, gmf)
+    print("energy with functional %s"%gmf.xc, gmf.energy_tot(dm=dm))
+
+    print("S vector", get_mj(mol, dm, include_L=False))
+    print("L vector", get_mj(mol, dm, include_S=False))
+    print("J vector", get_mj(mol, dm))
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-52-17.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 8
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 10:17:33 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         3.65
+N_elec (88, 83), N_ao 198
+**** MO energy ****
+MO #1   energy= -1986.50514377435  occ= 1
+MO #2   energy= -1986.50503129224  occ= 1
+MO #3   energy= -335.744290528609  occ= 1
+MO #4   energy= -335.743828499505  occ= 1
+MO #5   energy= -318.560556290809  occ= 1
+MO #6   energy= -318.560293715922  occ= 1
+MO #7   energy= -288.739578477604  occ= 1
+MO #8   energy= -288.739203056689  occ= 1
+MO #9   energy= -288.731434875524  occ= 1
+MO #10  energy= -288.731311117366  occ= 1
+MO #11  energy= -105.084099834758  occ= 1
+MO #12  energy= -105.084079925097  occ= 1
+MO #13  energy= -105.083959459973  occ= 1
+MO #14  energy= -105.083939530827  occ= 1
+MO #15  energy= -105.081664741123  occ= 1
+MO #16  energy= -105.081661078509  occ= 1
+MO #17  energy= -105.081583816407  occ= 1
+MO #18  energy= -105.081562186969  occ= 1
+MO #19  energy= -105.081537503955  occ= 1
+MO #20  energy= -105.081533842696  occ= 1
+MO #21  energy= -105.08145649569   occ= 1
+MO #22  energy= -105.081434847462  occ= 1
+MO #23  energy= -77.076630254891   occ= 1
+MO #24  energy= -76.9571027582273  occ= 1
+MO #25  energy= -69.5780994282082  occ= 1
+MO #26  energy= -69.5595519614925  occ= 1
+MO #27  energy= -63.2148599270391  occ= 1
+MO #28  energy= -63.2056553276979  occ= 1
+MO #29  energy= -63.1304888903365  occ= 1
+MO #30  energy= -63.0451272043222  occ= 1
+MO #31  energy= -50.7714725602696  occ= 1
+MO #32  energy= -50.7676187668609  occ= 1
+MO #33  energy= -50.7598659224687  occ= 1
+MO #34  energy= -50.7374218198715  occ= 1
+MO #35  energy= -49.1958618917753  occ= 1
+MO #36  energy= -49.1795441830149  occ= 1
+MO #37  energy= -49.1678052261841  occ= 1
+MO #38  energy= -49.095508041753   occ= 1
+MO #39  energy= -49.0498983684073  occ= 1
+MO #40  energy= -48.9959340013805  occ= 1
+MO #41  energy= -16.5559548074888  occ= 1
+MO #42  energy= -16.2410214902293  occ= 1
+MO #43  energy= -13.4590770478591  occ= 1
+MO #44  energy= -13.4139672926263  occ= 1
+MO #45  energy= -12.0551657278919  occ= 1
+MO #46  energy= -12.0153086067201  occ= 1
+MO #47  energy= -11.8190264670612  occ= 1
+MO #48  energy= -11.6601807477096  occ= 1
+MO #49  energy= -10.4911842102387  occ= 1
+MO #50  energy= -10.4911645606543  occ= 1
+MO #51  energy= -10.4910310452967  occ= 1
+MO #52  energy= -10.4910113757826  occ= 1
+MO #53  energy= -10.4886742150129  occ= 1
+MO #54  energy= -10.4886724323287  occ= 1
+MO #55  energy= -10.4885947953232  occ= 1
+MO #56  energy= -10.4885734119921  occ= 1
+MO #57  energy= -10.4885354272052  occ= 1
+MO #58  energy= -10.4885336474362  occ= 1
+MO #59  energy= -10.4884559266371  occ= 1
+MO #60  energy= -10.4884345243292  occ= 1
+MO #61  energy= -7.94831502593206  occ= 1
+MO #62  energy= -7.94829533480049  occ= 1
+MO #63  energy= -7.94821779941762  occ= 1
+MO #64  energy= -7.94819809923563  occ= 1
+MO #65  energy= -7.94584922487702  occ= 1
+MO #66  energy= -7.94584744403465  occ= 1
+MO #67  energy= -7.94576943133284  occ= 1
+MO #68  energy= -7.94574801119687  occ= 1
+MO #69  energy= -7.94570905305099  occ= 1
+MO #70  energy= -7.9457072694616   occ= 1
+MO #71  energy= -7.94562915811846  occ= 1
+MO #72  energy= -7.9456077166454   occ= 1
+MO #73  energy= -7.88046451223141  occ= 1
+MO #74  energy= -7.88044473203972  occ= 1
+MO #75  energy= -7.88018776246026  occ= 1
+MO #76  energy= -7.88016794259203  occ= 1
+MO #77  energy= -7.87954247333875  occ= 1
+MO #78  energy= -7.87952219888545  occ= 1
+MO #79  energy= -7.87942468196356  occ= 1
+MO #80  energy= -7.87940438499254  occ= 1
+MO #81  energy= -7.87795018258194  occ= 1
+MO #82  energy= -7.87794752007239  occ= 1
+MO #83  energy= -7.87786956087647  occ= 1
+MO #84  energy= -7.87784807096851  occ= 1
+MO #85  energy= -7.87768625254551  occ= 1
+MO #86  energy= -7.87768358426406  occ= 1
+MO #87  energy= -7.87760552460344  occ= 1
+MO #88  energy= -7.87758398696669  occ= 1
+MO #89  energy= -7.87700231418408  occ= 1
+MO #90  energy= -7.87700223856841  occ= 1
+MO #91  energy= -7.87699712800855  occ= 1
+MO #92  energy= -7.8769970978208   occ= 1
+MO #93  energy= -7.87692121442416  occ= 1
+MO #94  energy= -7.87692115385373  occ= 1
+MO #95  energy= -7.87689922335856  occ= 1
+MO #96  energy= -7.876899156067    occ= 1
+MO #97  energy= -7.14102196867551  occ= 1
+MO #98  energy= -7.14005126920171  occ= 1
+MO #99  energy= -7.11071587423067  occ= 1
+MO #100 energy= -7.04890444310035  occ= 1
+MO #101 energy= -6.81782081881047  occ= 1
+MO #102 energy= -6.77077552988689  occ= 1
+MO #103 energy= -6.61009466828205  occ= 1
+MO #104 energy= -6.39864916343584  occ= 1
+MO #105 energy= -6.33383907197306  occ= 1
+MO #106 energy= -6.23741638642004  occ= 1
+MO #107 energy= -2.38417823444976  occ= 1
+MO #108 energy= -2.26748629538415  occ= 1
+MO #109 energy= -1.41517068859707  occ= 1
+MO #110 energy= -1.41181271046992  occ= 1
+MO #111 energy= -1.22073330607302  occ= 1
+MO #112 energy= -1.21513255626645  occ= 1
+MO #113 energy= -1.17890459184204  occ= 1
+MO #114 energy= -1.13387192907908  occ= 1
+MO #115 energy= -0.953251361376711 occ= 1
+MO #116 energy= -0.952667171462504 occ= 1
+MO #117 energy= -0.944976725170504 occ= 1
+MO #118 energy= -0.944098676015855 occ= 1
+MO #119 energy= -0.94330857042303  occ= 1
+MO #120 energy= -0.942411481777812 occ= 1
+MO #121 energy= -0.942299471962769 occ= 1
+MO #122 energy= -0.941768833831247 occ= 1
+MO #123 energy= -0.937344773160045 occ= 1
+MO #124 energy= -0.936597896271589 occ= 1
+MO #125 energy= -0.936306256517214 occ= 1
+MO #126 energy= -0.932829460416847 occ= 1
+MO #127 energy= -0.858914350783805 occ= 1
+MO #128 energy= -0.854369465348774 occ= 1
+MO #129 energy= -0.837601072011611 occ= 1
+MO #130 energy= -0.815187775937762 occ= 1
+MO #131 energy= -0.780546267345525 occ= 1
+MO #132 energy= -0.777573614435029 occ= 1
+MO #133 energy= -0.727959680295919 occ= 1
+MO #134 energy= -0.631638868380929 occ= 1
+MO #135 energy= -0.616986291567073 occ= 1
+MO #136 energy= -0.406342655171385 occ= 1
+MO #137 energy= -0.405154660400999 occ= 1
+MO #138 energy= -0.383495940984539 occ= 1
+MO #139 energy= -0.382216190916917 occ= 1
+MO #140 energy= -0.380114188845642 occ= 1
+MO #141 energy= -0.379825232563484 occ= 1
+MO #142 energy= -0.372484362993109 occ= 1
+MO #143 energy= -0.372132391548401 occ= 1
+MO #144 energy= -0.371352201946    occ= 1
+MO #145 energy= -0.371294088757786 occ= 1
+MO #146 energy= -0.370506763455042 occ= 1
+MO #147 energy= -0.370351918903747 occ= 1
+MO #148 energy= -0.368673689592093 occ= 1
+MO #149 energy= -0.368377798033817 occ= 1
+MO #150 energy= -0.368239425304872 occ= 1
+MO #151 energy= -0.368212780035311 occ= 1
+MO #152 energy= -0.367589606859662 occ= 1
+MO #153 energy= -0.366114355066661 occ= 1
+MO #154 energy= -0.343454796457337 occ= 1
+MO #155 energy= -0.342733790773471 occ= 1
+MO #156 energy= -0.341261610374057 occ= 1
+MO #157 energy= -0.34117118084395  occ= 1
+MO #158 energy= -0.340602757175718 occ= 1
+MO #159 energy= -0.340346684095723 occ= 1
+MO #160 energy= -0.338131319565814 occ= 1
+MO #161 energy= -0.337987254763209 occ= 1
+MO #162 energy= -0.335426205430126 occ= 1
+MO #163 energy= -0.335060246383265 occ= 1
+MO #164 energy= -0.334214434571214 occ= 1
+MO #165 energy= -0.333661306586964 occ= 1
+MO #166 energy= -0.327145711442572 occ= 1
+MO #167 energy= -0.326910191846643 occ= 1
+MO #168 energy= -0.324697558781125 occ= 1
+MO #169 energy= -0.324204289487301 occ= 1
+MO #170 energy= -0.32370463258039  occ= 1
+MO #171 energy= -0.32341649429697  occ= 1
+MO #172 energy= 0.122831022520148  occ= 0
+MO #173 energy= 0.122883118784542  occ= 0
+MO #174 energy= 0.122987308039906  occ= 0
+MO #175 energy= 0.12306894025136   occ= 0
+MO #176 energy= 0.12318179283337   occ= 0
+MO #177 energy= 0.123279778263592  occ= 0
+MO #178 energy= 0.12956337598039   occ= 0
+MO #179 energy= 0.129567550392111  occ= 0
+MO #180 energy= 0.129797135349995  occ= 0
+MO #181 energy= 0.129803956707899  occ= 0
+MO #182 energy= 0.129926060253085  occ= 0
+MO #183 energy= 0.129927550372177  occ= 0
+MO #184 energy= 0.133452354177022  occ= 0
+MO #185 energy= 0.133557261092422  occ= 0
+MO #186 energy= 0.153430212310936  occ= 0
+MO #187 energy= 0.153850542330543  occ= 0
+MO #188 energy= 0.153942866431442  occ= 0
+MO #189 energy= 0.15413590491119   occ= 0
+MO #190 energy= 0.205975733542215  occ= 0
+MO #191 energy= 0.209639651139254  occ= 0
+MO #192 energy= 0.215651785757228  occ= 0
+MO #193 energy= 0.222645415270863  occ= 0
+MO #194 energy= 0.232439953704529  occ= 0
+MO #195 energy= 0.236747715518025  occ= 0
+MO #196 energy= 0.287253567093197  occ= 0
+MO #197 energy= 0.296609715144924  occ= 0
+MO #198 energy= 0.296848426101044  occ= 0
+MO #199 energy= 0.29836667505774   occ= 0
+MO #200 energy= 0.298475946267137  occ= 0
+MO #201 energy= 0.29888586058013   occ= 0
+MO #202 energy= 0.298977314933184  occ= 0
+MO #203 energy= 0.304390629995214  occ= 0
+MO #204 energy= 0.310377750751298  occ= 0
+MO #205 energy= 0.31234641649746   occ= 0
+MO #206 energy= 0.321260098646656  occ= 0
+MO #207 energy= 0.323510425706847  occ= 0
+MO #208 energy= 0.337156396673847  occ= 0
+MO #209 energy= 0.337587750798294  occ= 0
+MO #210 energy= 0.338411582581365  occ= 0
+MO #211 energy= 0.339110526278997  occ= 0
+MO #212 energy= 0.340962142976474  occ= 0
+MO #213 energy= 0.341410618140678  occ= 0
+MO #214 energy= 0.343053296303796  occ= 0
+MO #215 energy= 0.344567649702558  occ= 0
+MO #216 energy= 0.348721472178088  occ= 0
+MO #217 energy= 0.351927773892751  occ= 0
+MO #218 energy= 0.404263002958617  occ= 0
+MO #219 energy= 0.411551123603494  occ= 0
+MO #220 energy= 0.438026463512416  occ= 0
+MO #221 energy= 0.443253027877325  occ= 0
+MO #222 energy= 0.476372967762325  occ= 0
+MO #223 energy= 0.478168735366542  occ= 0
+MO #224 energy= 0.482929181932612  occ= 0
+MO #225 energy= 0.49117556956024   occ= 0
+MO #226 energy= 0.495789164110708  occ= 0
+MO #227 energy= 0.499235386069306  occ= 0
+MO #228 energy= 0.510001934017597  occ= 0
+MO #229 energy= 0.515934844944098  occ= 0
+MO #230 energy= 0.547630772851247  occ= 0
+MO #231 energy= 0.550278397828533  occ= 0
+MO #232 energy= 0.577921563826163  occ= 0
+MO #233 energy= 0.60585287468833   occ= 0
+MO #234 energy= 0.607859899047633  occ= 0
+MO #235 energy= 0.60810641069875   occ= 0
+MO #236 energy= 0.612012056331231  occ= 0
+MO #237 energy= 0.621253090525409  occ= 0
+MO #238 energy= 0.628689517220825  occ= 0
+MO #239 energy= 0.628787894551875  occ= 0
+MO #240 energy= 0.631162852670329  occ= 0
+MO #241 energy= 0.635666305165733  occ= 0
+MO #242 energy= 0.666518192749495  occ= 0
+MO #243 energy= 0.670932129713671  occ= 0
+MO #244 energy= 0.688802640420478  occ= 0
+MO #245 energy= 0.741889302476568  occ= 0
+MO #246 energy= 0.74618998654672   occ= 0
+MO #247 energy= 0.748463143973239  occ= 0
+MO #248 energy= 0.750235753156921  occ= 0
+MO #249 energy= 0.770810799810678  occ= 0
+MO #250 energy= 0.77103762460154   occ= 0
+MO #251 energy= 0.773453134386787  occ= 0
+MO #252 energy= 0.777146622934606  occ= 0
+MO #253 energy= 0.777238073127287  occ= 0
+MO #254 energy= 0.777681349364854  occ= 0
+MO #255 energy= 0.777751832765441  occ= 0
+MO #256 energy= 0.77797590806725   occ= 0
+MO #257 energy= 0.780540900564594  occ= 0
+MO #258 energy= 0.780585592198296  occ= 0
+MO #259 energy= 0.782768606014074  occ= 0
+MO #260 energy= 0.792623500353222  occ= 0
+MO #261 energy= 0.80140265640322   occ= 0
+MO #262 energy= 0.801437532073765  occ= 0
+MO #263 energy= 0.804948771353201  occ= 0
+MO #264 energy= 0.805422579959563  occ= 0
+MO #265 energy= 0.805574296452851  occ= 0
+MO #266 energy= 0.80650869140373   occ= 0
+MO #267 energy= 0.806933957517635  occ= 0
+MO #268 energy= 0.8094457861633    occ= 0
+MO #269 energy= 0.867173194699233  occ= 0
+MO #270 energy= 0.867270674588869  occ= 0
+MO #271 energy= 0.869804045567716  occ= 0
+MO #272 energy= 0.869995045741127  occ= 0
+MO #273 energy= 0.870520985101251  occ= 0
+MO #274 energy= 0.870628828816568  occ= 0
+MO #275 energy= 0.932994959453785  occ= 0
+MO #276 energy= 0.933947659290709  occ= 0
+MO #277 energy= 0.934094232377727  occ= 0
+MO #278 energy= 0.934168334102713  occ= 0
+MO #279 energy= 0.937693169078844  occ= 0
+MO #280 energy= 0.938083530628474  occ= 0
+MO #281 energy= 1.01777197082995   occ= 0
+MO #282 energy= 1.01896505188915   occ= 0
+MO #283 energy= 1.01981107913472   occ= 0
+MO #284 energy= 1.0212197827875    occ= 0
+MO #285 energy= 1.02390864725638   occ= 0
+MO #286 energy= 1.0254012438286    occ= 0
+MO #287 energy= 1.0303468117205    occ= 0
+MO #288 energy= 1.04188669430936   occ= 0
+MO #289 energy= 1.04214736536285   occ= 0
+MO #290 energy= 1.04615410617777   occ= 0
+MO #291 energy= 1.09191397326946   occ= 0
+MO #292 energy= 1.09200033883836   occ= 0
+MO #293 energy= 1.09433146496338   occ= 0
+MO #294 energy= 1.0944743666709    occ= 0
+MO #295 energy= 1.09478771717683   occ= 0
+MO #296 energy= 1.09527570382341   occ= 0
+MO #297 energy= 1.10609924650927   occ= 0
+MO #298 energy= 1.11382051743699   occ= 0
+MO #299 energy= 1.12191801539334   occ= 0
+MO #300 energy= 1.12559608317563   occ= 0
+MO #301 energy= 1.32562557133244   occ= 0
+MO #302 energy= 1.33047067826822   occ= 0
+MO #303 energy= 1.37050936902699   occ= 0
+MO #304 energy= 1.38328388253434   occ= 0
+MO #305 energy= 1.53171021130383   occ= 0
+MO #306 energy= 1.5377864478386    occ= 0
+MO #307 energy= 1.55611232534408   occ= 0
+MO #308 energy= 1.58923863901024   occ= 0
+MO #309 energy= 1.59263333683542   occ= 0
+MO #310 energy= 1.60577749080587   occ= 0
+MO #311 energy= 1.60722737717594   occ= 0
+MO #312 energy= 1.6142299251613    occ= 0
+MO #313 energy= 1.61491657602028   occ= 0
+MO #314 energy= 1.62100197350687   occ= 0
+MO #315 energy= 1.62736871355419   occ= 0
+MO #316 energy= 1.69223180995154   occ= 0
+MO #317 energy= 1.70699348227147   occ= 0
+MO #318 energy= 1.71727596208139   occ= 0
+MO #319 energy= 1.85697381631752   occ= 0
+MO #320 energy= 1.86087086640237   occ= 0
+MO #321 energy= 1.88164993414973   occ= 0
+MO #322 energy= 1.9209695169472    occ= 0
+MO #323 energy= 1.92128307875271   occ= 0
+MO #324 energy= 1.93603839397696   occ= 0
+MO #325 energy= 2.64933418237902   occ= 0
+MO #326 energy= 2.67252694769863   occ= 0
+MO #327 energy= 2.67814956486295   occ= 0
+MO #328 energy= 2.70022636503449   occ= 0
+MO #329 energy= 2.74671813669446   occ= 0
+MO #330 energy= 2.76333785666121   occ= 0
+MO #331 energy= 2.82263472732731   occ= 0
+MO #332 energy= 2.8568405647358    occ= 0
+MO #333 energy= 2.89495820423356   occ= 0
+MO #334 energy= 2.91856719841752   occ= 0
+MO #335 energy= 4.41001917349615   occ= 0
+MO #336 energy= 4.46575461604971   occ= 0
+MO #337 energy= 5.73127282586718   occ= 0
+MO #338 energy= 5.74331245279966   occ= 0
+MO #339 energy= 6.24346968456487   occ= 0
+MO #340 energy= 6.25329647750861   occ= 0
+MO #341 energy= 6.28321157225554   occ= 0
+MO #342 energy= 6.34088686013112   occ= 0
+MO #343 energy= 11.4026347267434   occ= 0
+MO #344 energy= 11.439829746261    occ= 0
+MO #345 energy= 11.447486969489    occ= 0
+MO #346 energy= 11.4728437078729   occ= 0
+MO #347 energy= 11.7281953370651   occ= 0
+MO #348 energy= 11.7680864282998   occ= 0
+MO #349 energy= 11.7730723268426   occ= 0
+MO #350 energy= 11.8270143435026   occ= 0
+MO #351 energy= 11.8429004038724   occ= 0
+MO #352 energy= 11.927388724171    occ= 0
+MO #353 energy= 16.7878088849229   occ= 0
+MO #354 energy= 16.88079419249     occ= 0
+MO #355 energy= 27.915060538838    occ= 0
+MO #356 energy= 27.9374763051251   occ= 0
+MO #357 energy= 31.0818557124513   occ= 0
+MO #358 energy= 31.1144421871669   occ= 0
+MO #359 energy= 31.1331719616366   occ= 0
+MO #360 energy= 31.2153284184831   occ= 0
+MO #361 energy= 60.4322862876156   occ= 0
+MO #362 energy= 60.4415242580731   occ= 0
+MO #363 energy= 60.4662906042581   occ= 0
+MO #364 energy= 60.4954611300844   occ= 0
+MO #365 energy= 62.6201125906677   occ= 0
+MO #366 energy= 62.6404339853671   occ= 0
+MO #367 energy= 62.6618045093927   occ= 0
+MO #368 energy= 62.6705119168001   occ= 0
+MO #369 energy= 62.6889815229481   occ= 0
+MO #370 energy= 62.7532754772614   occ= 0
+MO #371 energy= 71.974294875676    occ= 0
+MO #372 energy= 72.0426873431255   occ= 0
+MO #373 energy= 150.734248726315   occ= 0
+MO #374 energy= 150.743574012642   occ= 0
+MO #375 energy= 165.183642540696   occ= 0
+MO #376 energy= 165.201895515355   occ= 0
+MO #377 energy= 165.211294967528   occ= 0
+MO #378 energy= 165.245770628821   occ= 0
+MO #379 energy= 294.470954035285   occ= 0
+MO #380 energy= 294.491351041785   occ= 0
+MO #381 energy= 690.538529222467   occ= 0
+MO #382 energy= 690.540001332451   occ= 0
+MO #383 energy= 798.986544012356   occ= 0
+MO #384 energy= 798.989055795487   occ= 0
+MO #385 energy= 798.996627314703   occ= 0
+MO #386 energy= 799.001235071609   occ= 0
+MO #387 energy= 1008.64593356472   occ= 0
+MO #388 energy= 1008.64995467763   occ= 0
+MO #389 energy= 2865.03494252019   occ= 0
+MO #390 energy= 2865.03583478623   occ= 0
+MO #391 energy= 6964.91719035376   occ= 0
+MO #392 energy= 6964.91745519614   occ= 0
+MO #393 energy= 14850.454317213    occ= 0
+MO #394 energy= 14850.454409686    occ= 0
+MO #395 energy= 35043.5916066623   occ= 0
+MO #396 energy= 35043.5916358175   occ= 0
+ ** Mulliken pop       alpha | beta **
+pop of  0 Dy 1s        0.04201 | 0.04201   
+pop of  0 Dy 2s        0.08225 | 0.08225   
+pop of  0 Dy 3s        0.17106 | 0.17106   
+pop of  0 Dy 4s        0.31797 | 0.31797   
+pop of  0 Dy 5s        0.28729 | 0.28729   
+pop of  0 Dy 6s        0.09046 | 0.09047   
+pop of  0 Dy 7s        0.46302 | 0.46298   
+pop of  0 Dy 8s        0.48845 | 0.48844   
+pop of  0 Dy 9s        0.35049 | 0.35142   
+pop of  0 Dy 10s        0.67619 | 0.67627   
+pop of  0 Dy 11s        0.38000 | 0.37871   
+pop of  0 Dy 12s        0.62696 | 0.62780   
+pop of  0 Dy 13s        0.17258 | 0.14500   
+pop of  0 Dy 14s        0.71883 | 0.71834   
+pop of  0 Dy 15s        0.11120 | 0.14204   
+pop of  0 Dy 16s        0.17261 | 0.15920   
+pop of  0 Dy 17s       -0.06641 | -0.06410  
+pop of  0 Dy 18s        0.01017 | 0.00982   
+pop of  0 Dy 2px       0.35018 | 0.35018   
+pop of  0 Dy 2py       0.35018 | 0.35018   
+pop of  0 Dy 2pz       0.35018 | 0.35018   
+pop of  0 Dy 3px       0.48939 | 0.48939   
+pop of  0 Dy 3py       0.48939 | 0.48939   
+pop of  0 Dy 3pz       0.48938 | 0.48938   
+pop of  0 Dy 4px       0.25089 | 0.25099   
+pop of  0 Dy 4py       0.25089 | 0.25099   
+pop of  0 Dy 4pz       0.25083 | 0.25095   
+pop of  0 Dy 5px       0.70571 | 0.70618   
+pop of  0 Dy 5py       0.70571 | 0.70618   
+pop of  0 Dy 5pz       0.70566 | 0.70624   
+pop of  0 Dy 6px       0.32214 | 0.32163   
+pop of  0 Dy 6py       0.32214 | 0.32163   
+pop of  0 Dy 6pz       0.32234 | 0.32173   
+pop of  0 Dy 7px       0.75988 | 0.75753   
+pop of  0 Dy 7py       0.75988 | 0.75753   
+pop of  0 Dy 7pz       0.76215 | 0.75928   
+pop of  0 Dy 8px       0.19677 | 0.18662   
+pop of  0 Dy 8py       0.19677 | 0.18662   
+pop of  0 Dy 8pz       0.19967 | 0.18680   
+pop of  0 Dy 9px       0.63555 | 0.61290   
+pop of  0 Dy 9py       0.63556 | 0.61290   
+pop of  0 Dy 9pz       0.64538 | 0.61921   
+pop of  0 Dy 10px       0.27806 | 0.31165   
+pop of  0 Dy 10py       0.27804 | 0.31163   
+pop of  0 Dy 10pz       0.26591 | 0.30567   
+pop of  0 Dy 11px       0.09301 | 0.08892   
+pop of  0 Dy 11py       0.09311 | 0.08902   
+pop of  0 Dy 11pz       0.09510 | 0.09037   
+pop of  0 Dy 12px       0.01950 | 0.01958   
+pop of  0 Dy 12py       0.01949 | 0.01956   
+pop of  0 Dy 12pz       0.01903 | 0.01938   
+pop of  0 Dy 13px       0.00844 | 0.00835   
+pop of  0 Dy 13py       0.00844 | 0.00835   
+pop of  0 Dy 13pz       0.00842 | 0.00829   
+pop of  0 Dy 3dxy      0.58387 | 0.58494   
+pop of  0 Dy 3dyz      0.58368 | 0.58495   
+pop of  0 Dy 3dz^2     0.58373 | 0.58528   
+pop of  0 Dy 3dxz      0.58368 | 0.58495   
+pop of  0 Dy 3dx2-y2    0.58405 | 0.58511   
+pop of  0 Dy 4dxy      0.42393 | 0.42350   
+pop of  0 Dy 4dyz      0.42406 | 0.42353   
+pop of  0 Dy 4dz^2     0.42408 | 0.42342   
+pop of  0 Dy 4dxz      0.42406 | 0.42353   
+pop of  0 Dy 4dx2-y2    0.42388 | 0.42345   
+pop of  0 Dy 5dxy      0.47352 | 0.47305   
+pop of  0 Dy 5dyz      0.47433 | 0.47399   
+pop of  0 Dy 5dz^2     0.47586 | 0.47567   
+pop of  0 Dy 5dxz      0.47433 | 0.47399   
+pop of  0 Dy 5dx2-y2    0.47442 | 0.47387   
+pop of  0 Dy 6dxy      0.48627 | 0.48526   
+pop of  0 Dy 6dyz      0.48629 | 0.48521   
+pop of  0 Dy 6dz^2     0.48623 | 0.48496   
+pop of  0 Dy 6dxz      0.48629 | 0.48521   
+pop of  0 Dy 6dx2-y2    0.48612 | 0.48513   
+pop of  0 Dy 7dxy      0.03292 | 0.03346   
+pop of  0 Dy 7dyz      0.03236 | 0.03257   
+pop of  0 Dy 7dz^2     0.03889 | 0.03622   
+pop of  0 Dy 7dxz      0.03236 | 0.03257   
+pop of  0 Dy 7dx2-y2    0.03877 | 0.03779   
+pop of  0 Dy 8dxy      0.00976 | 0.00891   
+pop of  0 Dy 8dyz      0.01023 | 0.00907   
+pop of  0 Dy 8dz^2     0.04879 | 0.04167   
+pop of  0 Dy 8dxz      0.01023 | 0.00907   
+pop of  0 Dy 8dx2-y2    0.04498 | 0.04076   
+pop of  0 Dy 9dxy      0.03692 | 0.03582   
+pop of  0 Dy 9dyz      0.03787 | 0.03652   
+pop of  0 Dy 9dz^2     0.11930 | 0.11383   
+pop of  0 Dy 9dxz      0.03786 | 0.03651   
+pop of  0 Dy 9dx2-y2    0.11632 | 0.11220   
+pop of  0 Dy 10dxy      0.03078 | 0.03066   
+pop of  0 Dy 10dyz      0.03029 | 0.03020   
+pop of  0 Dy 10dz^2    -0.01392 | -0.01390  
+pop of  0 Dy 10dxz      0.03027 | 0.03018   
+pop of  0 Dy 10dx2-y2   -0.01330 | -0.01330  
+pop of  0 Dy 11dxy      0.00472 | 0.00474   
+pop of  0 Dy 11dyz      0.00469 | 0.00471   
+pop of  0 Dy 11dz^2     0.00365 | 0.00375   
+pop of  0 Dy 11dxz      0.00469 | 0.00471   
+pop of  0 Dy 11dx2-y2    0.00382 | 0.00388   
+pop of  0 Dy 4f-3      0.95885 | 0.48027   
+pop of  0 Dy 4f-2      0.95451 | 0.48907   
+pop of  0 Dy 4f-1      0.95967 | 0.03439   
+pop of  0 Dy 4f+0      0.93960 | 0.02875   
+pop of  0 Dy 4f+1      0.95968 | 0.03439   
+pop of  0 Dy 4f+2      0.95429 | 0.48825   
+pop of  0 Dy 4f+3      0.95885 | 0.48027   
+pop of  0 Dy 5f-3      0.03214 | 0.02169   
+pop of  0 Dy 5f-2      0.02784 | 0.02027   
+pop of  0 Dy 5f-1      0.02650 | 0.00334   
+pop of  0 Dy 5f+0      0.02623 | 0.00550   
+pop of  0 Dy 5f+1      0.02650 | 0.00334   
+pop of  0 Dy 5f+2      0.02823 | 0.02085   
+pop of  0 Dy 5f+3      0.03214 | 0.02169   
+pop of  0 Dy 6f-3      0.03490 | 0.03431   
+pop of  0 Dy 6f-2      0.00119 | 0.00089   
+pop of  0 Dy 6f-1      0.02892 | 0.02800   
+pop of  0 Dy 6f+0      0.04577 | 0.04463   
+pop of  0 Dy 6f+1      0.02892 | 0.02801   
+pop of  0 Dy 6f+2      0.01966 | 0.01928   
+pop of  0 Dy 6f+3      0.03491 | 0.03433   
+pop of  1 Cl 1s        0.99991 | 0.99991   
+pop of  1 Cl 2s        0.99943 | 0.99944   
+pop of  1 Cl 3s        0.66831 | 0.66906   
+pop of  1 Cl 4s        0.31097 | 0.31038   
+pop of  1 Cl 2px       0.99713 | 0.99717   
+pop of  1 Cl 2py       0.99739 | 0.99739   
+pop of  1 Cl 2pz       0.99738 | 0.99739   
+pop of  1 Cl 3px       0.58539 | 0.59052   
+pop of  1 Cl 3py       0.60834 | 0.60909   
+pop of  1 Cl 3pz       0.60775 | 0.60854   
+pop of  1 Cl 4px       0.31229 | 0.31406   
+pop of  1 Cl 4py       0.35865 | 0.35848   
+pop of  1 Cl 4pz       0.35861 | 0.35848   
+pop of  2 Cl 1s        0.99991 | 0.99991   
+pop of  2 Cl 2s        0.99943 | 0.99944   
+pop of  2 Cl 3s        0.66831 | 0.66906   
+pop of  2 Cl 4s        0.31097 | 0.31038   
+pop of  2 Cl 2px       0.99713 | 0.99717   
+pop of  2 Cl 2py       0.99739 | 0.99739   
+pop of  2 Cl 2pz       0.99738 | 0.99739   
+pop of  2 Cl 3px       0.58539 | 0.59052   
+pop of  2 Cl 3py       0.60834 | 0.60909   
+pop of  2 Cl 3pz       0.60775 | 0.60854   
+pop of  2 Cl 4px       0.31230 | 0.31406   
+pop of  2 Cl 4py       0.35865 | 0.35848   
+pop of  2 Cl 4pz       0.35861 | 0.35848   
+pop of  3 Cl 1s        0.99991 | 0.99991   
+pop of  3 Cl 2s        0.99943 | 0.99944   
+pop of  3 Cl 3s        0.66832 | 0.66907   
+pop of  3 Cl 4s        0.31097 | 0.31038   
+pop of  3 Cl 2px       0.99739 | 0.99739   
+pop of  3 Cl 2py       0.99713 | 0.99717   
+pop of  3 Cl 2pz       0.99738 | 0.99739   
+pop of  3 Cl 3px       0.60834 | 0.60910   
+pop of  3 Cl 3py       0.58540 | 0.59053   
+pop of  3 Cl 3pz       0.60774 | 0.60853   
+pop of  3 Cl 4px       0.35859 | 0.35843   
+pop of  3 Cl 4py       0.31215 | 0.31392   
+pop of  3 Cl 4pz       0.35858 | 0.35845   
+pop of  4 Cl 1s        0.99991 | 0.99991   
+pop of  4 Cl 2s        0.99943 | 0.99944   
+pop of  4 Cl 3s        0.66832 | 0.66907   
+pop of  4 Cl 4s        0.31097 | 0.31038   
+pop of  4 Cl 2px       0.99739 | 0.99739   
+pop of  4 Cl 2py       0.99713 | 0.99717   
+pop of  4 Cl 2pz       0.99738 | 0.99739   
+pop of  4 Cl 3px       0.60834 | 0.60910   
+pop of  4 Cl 3py       0.58540 | 0.59053   
+pop of  4 Cl 3pz       0.60774 | 0.60853   
+pop of  4 Cl 4px       0.35860 | 0.35843   
+pop of  4 Cl 4py       0.31217 | 0.31393   
+pop of  4 Cl 4pz       0.35859 | 0.35845   
+pop of  5 Cl 1s        0.99991 | 0.99991   
+pop of  5 Cl 2s        0.99943 | 0.99944   
+pop of  5 Cl 3s        0.66855 | 0.66940   
+pop of  5 Cl 4s        0.31062 | 0.30985   
+pop of  5 Cl 2px       0.99739 | 0.99739   
+pop of  5 Cl 2py       0.99739 | 0.99739   
+pop of  5 Cl 2pz       0.99712 | 0.99716   
+pop of  5 Cl 3px       0.60883 | 0.60949   
+pop of  5 Cl 3py       0.60882 | 0.60948   
+pop of  5 Cl 3pz       0.58407 | 0.59013   
+pop of  5 Cl 4px       0.35784 | 0.35763   
+pop of  5 Cl 4py       0.35787 | 0.35766   
+pop of  5 Cl 4pz       0.30913 | 0.31115   
+pop of  6 Cl 1s        0.99991 | 0.99991   
+pop of  6 Cl 2s        0.99943 | 0.99944   
+pop of  6 Cl 3s        0.66856 | 0.66940   
+pop of  6 Cl 4s        0.31062 | 0.30985   
+pop of  6 Cl 2px       0.99739 | 0.99739   
+pop of  6 Cl 2py       0.99739 | 0.99739   
+pop of  6 Cl 2pz       0.99712 | 0.99716   
+pop of  6 Cl 3px       0.60883 | 0.60950   
+pop of  6 Cl 3py       0.60882 | 0.60948   
+pop of  6 Cl 3pz       0.58407 | 0.59012   
+pop of  6 Cl 4px       0.35784 | 0.35763   
+pop of  6 Cl 4py       0.35786 | 0.35765   
+pop of  6 Cl 4pz       0.30912 | 0.31114   
+In total            87.88322 | 83.11678  
+ ** Mulliken atomic charges   ( Nelec_alpha | Nelec_beta ) **
+charge of  0Dy =      0.65109  (    35.08347     30.26543 )
+charge of  1Cl =     -0.61146  (     8.80156      8.80990 )
+charge of  2Cl =     -0.61146  (     8.80156      8.80990 )
+charge of  3Cl =     -0.61104  (     8.80135      8.80969 )
+charge of  4Cl =     -0.61108  (     8.80137      8.80971 )
+charge of  5Cl =     -0.60305  (     8.79697      8.80608 )
+charge of  6Cl =     -0.60301  (     8.79695      8.80606 )
+Load .chk file for init guess
+Haar random target direction [0.741809628863254, 0.08693491694486997, -0.6649517236172487]
+Haar random total rotation [0.     2.2982 0.1167]
+(3, 198, 198) 198
+Rotated f-block dm by angles from +z [0.     2.2982 0.1167]
+(3, 198, 198) 198
+elemental J of ['Cl' 'Dy']
+  Cl 0.0000+0.0000j 0.0000+0.0000j -0.0297+0.0000j 
+  Dy 5.2075-0.0000j 0.6103+0.0000j -4.1586-0.0000j 
+J vector of initial guess [ 5.2075-0.j  0.6103-0.j -4.1883+0.j]
+target direction [0.741809628863254, 0.08693491694486997, -0.6649517236172487]
+target direction: [ 0.7418  0.0869 -0.665 ]
+(3, 198, 198) 198
+LO error from I 0.003969852403580924
+ao_index [ 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 297 298 299 300 301 302 303 304 305 306 307 308 309 310 311 312 313 314 315 316 317]
+ao_labels ['0 Dy 4f-3  ' '0 Dy 4f-2  ' '0 Dy 4f-1  ' '0 Dy 4f+0  ' '0 Dy 4f+1  ' '0 Dy 4f+2  ' '0 Dy 4f+3  ' '0 Dy 5f-3  ' '0 Dy 5f-2  ' '0 Dy 5f-1  ' '0 Dy 5f+0  ' '0 Dy 5f+1  ' '0 Dy 5f+2  ' '0 Dy 5f+3  ' '0 Dy 6f-3  ' '0 Dy 6f-2  ' '0 Dy 6f-1  ' '0 Dy 6f+0  ' '0 Dy 6f+1  ' '0 Dy 6f+2  ' '0 Dy 6f+3  ']
+
+
+******** <class 'pyscf.x2c.x2c.X2C1eGKS'> ********
+method = X2C1eGKS
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+diis_damp = 0
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 500
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = constrained_chkfile.chk
+max_memory 32000 MB (current use 211 MB)
+XC library pyscf.dft.libxc version 6.1.0
+    S. Lehtola, C. Steigemann, M. J.T. Oliveira, and M. A.L. Marques.,  SoftwareX 7, 1–5 (2018)
+XC functionals = HF
+
+radial grids: 
+    Treutler-Ahlrichs [JCP 102, 346 (1995); DOI:10.1063/1.469408] (M4) radial grids
+    
+becke partition: Becke, JCP 88, 2547 (1988); DOI:10.1063/1.454033
+pruning grids: <function nwchem_prune at 0x7f6acc32de40>
+grids dens level: 3
+symmetrized grids: False
+atomic radii adjust function: <function treutler_atomic_radii_adjust at 0x7f6acc32e480>
+small_rho_cutoff = 1e-07
+collinear = col
+
+
+******** <class 'pyscf.x2c.x2c.SpinOrbitalX2CHelper'> ********
+approx = 1e
+xuncontract = 1
+Overwritten attributes  get_hcore get_veff  of <class 'pyscf.x2c.x2c.X2C1eGKS'>
+Set gradient conv threshold to 3.16228e-05
+tot grids = 134432
+J                           [ 5.2073  0.6103 -4.1953]
+energy penalty 0.0009278586020488256
+init E= -14978.6191082133
+  HOMO = -0.323745092704661  LUMO = 0.122861819952436
+J                           [ 5.565   0.6516 -4.9747]
+energy penalty 7.015568971091568e-07
+cycle= 1 E= -14978.7627418234  delta_E= -0.144  |g|=  0.1  |ddm|= 0.448
+  HOMO = -0.323714093199335  LUMO = 0.122857355899196
+J                           [ 5.5628  0.651  -4.9763]
+energy penalty 3.8550172929419093e-07
+cycle= 2 E= -14978.7662775249  delta_E= -0.00354  |g|= 0.0688  |ddm|= 0.0991
+  HOMO = -0.323821443904243  LUMO = 0.12280931642817
+J                           [ 5.5623  0.6508 -4.9765]
+energy penalty 3.354951272349638e-07
+cycle= 3 E= -14978.7668038672  delta_E= -0.000526  |g|= 0.0147  |ddm|= 0.0351
+  HOMO = -0.323806468909223  LUMO = 0.122829271047211
+J                           [ 5.5619  0.6505 -4.9769]
+energy penalty 2.850419250854941e-07
+cycle= 4 E= -14978.7669093151  delta_E= -0.000105  |g|= 0.00379  |ddm|= 0.021
+  HOMO = -0.323768355750468  LUMO = 0.122824763499361
+J                           [ 5.5618  0.6503 -4.9771]
+energy penalty 2.699001720785077e-07
+cycle= 5 E= -14978.7669236437  delta_E= -1.43e-05  |g|= 0.00231  |ddm|= 0.00608
+  HOMO = -0.323757894658675  LUMO = 0.122824943924044
+J                           [ 5.5616  0.6499 -4.9774]
+energy penalty 2.503959605881789e-07
+cycle= 6 E= -14978.7669355786  delta_E= -1.19e-05  |g|= 0.00167  |ddm|= 0.00591
+  HOMO = -0.323686233572101  LUMO = 0.122822711443302
+J                           [ 5.5613  0.6494 -4.9778]
+energy penalty 2.2298522308616953e-07
+cycle= 7 E= -14978.7669458433  delta_E= -1.03e-05  |g|= 0.00117  |ddm|= 0.00589
+  HOMO = -0.323715247968582  LUMO = 0.122824892603073
+J                           [ 5.5611  0.649  -4.9782]
+energy penalty 2.025373865954805e-07
+cycle= 8 E= -14978.7669515259  delta_E= -5.68e-06  |g|= 0.000899  |ddm|= 0.00412
+  HOMO = -0.323705776236478  LUMO = 0.122823541227237
+J                           [ 5.5607  0.6485 -4.9786]
+energy penalty 1.8490844349017267e-07
+cycle= 9 E= -14978.7669558767  delta_E= -4.35e-06  |g|= 0.000688  |ddm|= 0.0044
+  HOMO = -0.323720755998167  LUMO = 0.122824589888403
+J                           [ 5.5605  0.6483 -4.9788]
+energy penalty 1.7527187550214763e-07
+cycle= 10 E= -14978.7669581664  delta_E= -2.29e-06  |g|= 0.000592  |ddm|= 0.00275
+  HOMO = -0.323730173991262  LUMO = 0.122824435331479
+J                           [ 5.5601  0.648  -4.9791]
+energy penalty 1.642832502035674e-07
+cycle= 11 E= -14978.7669608918  delta_E= -2.73e-06  |g|= 0.00049  |ddm|= 0.00373
+  HOMO = -0.323717548640719  LUMO = 0.122824790417804
+J                           [ 5.5598  0.6478 -4.9793]
+energy penalty 1.5612756785188255e-07
+cycle= 12 E= -14978.7669631084  delta_E= -2.22e-06  |g|= 0.000424  |ddm|= 0.00369
+  HOMO = -0.3237199300102  LUMO = 0.122824334326562
+J                           [ 5.5596  0.6477 -4.9794]
+energy penalty 1.5118406162528686e-07
+cycle= 13 E= -14978.7669645166  delta_E= -1.41e-06  |g|= 0.00038  |ddm|= 0.00265
+  HOMO = -0.323707921914695  LUMO = 0.122824395541147
+J                           [ 5.5593  0.6476 -4.9795]
+energy penalty 1.4416458977706272e-07
+cycle= 14 E= -14978.7669664487  delta_E= -1.93e-06  |g|= 0.000312  |ddm|= 0.00429
+  HOMO = -0.323712316148373  LUMO = 0.12282467020218
+J                           [ 5.559   0.6475 -4.9795]
+energy penalty 1.3807196035386938e-07
+cycle= 15 E= -14978.7669679569  delta_E= -1.51e-06  |g|= 0.000251  |ddm|= 0.00441
+  HOMO = -0.323717473852273  LUMO = 0.122824294821188
+J                           [ 5.5587  0.6475 -4.9795]
+energy penalty 1.3373311444908608e-07
+cycle= 16 E= -14978.7669688018  delta_E= -8.45e-07  |g|= 0.000209  |ddm|= 0.00328
+  HOMO = -0.323718214411292  LUMO = 0.122824902438338
+J                           [ 5.5586  0.6475 -4.9794]
+energy penalty 1.2993488800461251e-07
+cycle= 17 E= -14978.7669693359  delta_E= -5.34e-07  |g|= 0.000171  |ddm|= 0.00265
+  HOMO = -0.323716713347897  LUMO = 0.122824428772369
+J                           [ 5.5585  0.6476 -4.9793]
+energy penalty 1.2642027460429973e-07
+cycle= 18 E= -14978.7669696653  delta_E= -3.29e-07  |g|= 0.000144  |ddm|= 0.00208
+  HOMO = -0.323717998458419  LUMO = 0.122824210299975
+J                           [ 5.5584  0.6476 -4.9793]
+energy penalty 1.2371118360832156e-07
+cycle= 19 E= -14978.7669698309  delta_E= -1.66e-07  |g|= 0.000125  |ddm|= 0.00116
+  HOMO = -0.32371238311294  LUMO = 0.122824307552521
+J                           [ 5.5583  0.6477 -4.9793]
+energy penalty 1.2058791813984727e-07
+cycle= 20 E= -14978.766969978  delta_E= -1.47e-07  |g|= 0.000105  |ddm|= 0.00112
+  HOMO = -0.3237159250408  LUMO = 0.122823839114559
+J                           [ 5.5583  0.6477 -4.9792]
+energy penalty 1.1674735196365305e-07
+cycle= 21 E= -14978.7669701189  delta_E= -1.41e-07  |g|= 8.25e-05  |ddm|= 0.00128
+  HOMO = -0.323712463349167  LUMO = 0.122823914560898
+J                           [ 5.5582  0.6478 -4.9792]
+energy penalty 1.1435297118111976e-07
+cycle= 22 E= -14978.7669701939  delta_E= -7.5e-08  |g|= 6.82e-05  |ddm|= 0.000852
+  HOMO = -0.323715680366114  LUMO = 0.122823794962091
+J                           [ 5.5582  0.6478 -4.9792]
+energy penalty 1.1285741869926369e-07
+cycle= 23 E= -14978.7669702416  delta_E= -4.77e-08  |g|= 5.64e-05  |ddm|= 0.000655
+  HOMO = -0.323714649203418  LUMO = 0.12282364526604
+J                           [ 5.5582  0.6478 -4.9792]
+energy penalty 1.1201485694556368e-07
+cycle= 24 E= -14978.7669702767  delta_E= -3.5e-08  |g|= 4.33e-05  |ddm|= 0.00062
+  HOMO = -0.323714321084478  LUMO = 0.122823641115295
+J                           [ 5.5582  0.6478 -4.9793]
+energy penalty 1.1203120928726663e-07
+cycle= 25 E= -14978.7669702925  delta_E= -1.58e-08  |g|= 3.54e-05  |ddm|= 0.00043
+  HOMO = -0.323714154754158  LUMO = 0.122823541079073
+J                           [ 5.5581  0.6478 -4.9793]
+energy penalty 1.1246718569779546e-07
+cycle= 26 E= -14978.7669702966  delta_E= -4.07e-09  |g|= 3.27e-05  |ddm|= 0.00017
+  HOMO = -0.323714264498818  LUMO = 0.122823546325177
+J                           [ 5.5581  0.6477 -4.9793]
+energy penalty 1.1294491972790866e-07
+cycle= 27 E= -14978.7669702993  delta_E= -2.68e-09  |g|= 3.11e-05  |ddm|= 8.27e-05
+  HOMO = -0.323714006997117  LUMO = 0.122823583780664
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 1.1398174528665095e-07
+cycle= 28 E= -14978.7669703055  delta_E= -6.26e-09  |g|= 2.81e-05  |ddm|= 0.000159
+  HOMO = -0.323714464772802  LUMO = 0.122823544596256
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 1.1541443285523201e-07
+cycle= 29 E= -14978.7669703135  delta_E= -7.95e-09  |g|= 2.46e-05  |ddm|= 0.000223
+  HOMO = -0.323714218729941  LUMO = 0.122823569033047
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 1.1672965269937664e-07
+cycle= 30 E= -14978.7669703217  delta_E= -8.21e-09  |g|= 2.11e-05  |ddm|= 0.000268
+  HOMO = -0.323714406585837  LUMO = 0.122823567254125
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 1.1769050729526498e-07
+cycle= 31 E= -14978.7669703284  delta_E= -6.74e-09  |g|= 1.75e-05  |ddm|= 0.00027
+  HOMO = -0.323714069612773  LUMO = 0.122823552857012
+J                           [ 5.5581  0.6476 -4.9792]
+energy penalty 1.1815197593634253e-07
+cycle= 32 E= -14978.766970333  delta_E= -4.56e-09  |g|= 1.48e-05  |ddm|= 0.000232
+  HOMO = -0.323714258384875  LUMO = 0.12282357114725
+J                           [ 5.5581  0.6476 -4.9792]
+energy penalty 1.1819354863717991e-07
+cycle= 33 E= -14978.7669703357  delta_E= -2.69e-09  |g|= 1.28e-05  |ddm|= 0.000181
+  HOMO = -0.323714187022259  LUMO = 0.122823568174213
+J                           [ 5.5581  0.6476 -4.9792]
+energy penalty 1.1795482697252169e-07
+cycle= 34 E= -14978.7669703369  delta_E= -1.19e-09  |g|= 1.18e-05  |ddm|= 9.8e-05
+  HOMO = -0.323714230747243  LUMO = 0.122823567626958
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 1.1753968243155555e-07
+cycle= 35 E= -14978.7669703378  delta_E= -9.57e-10  |g|= 1.08e-05  |ddm|= 8.22e-05
+  HOMO = -0.323714184400092  LUMO = 0.122823565732512
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 1.1743010199793958e-07
+Extra cycle  E= -14978.766970338  delta_E= -2.04e-10  |g|= 1.04e-05  |ddm|= 1.27e-05
+converged SCF energy = -14978.766970338  <S^2> = 8.2684121  2S+1 = 5.8372638
+(3, 198, 198) 198
+local mj [ 5.5581+0.j  0.6477+0.j -4.9792+0.j]
+J                           [ 5.5581  0.6477 -4.9792]
+energy penalty 0.0
+**J_vector, dft energy** [ 5.563 +0.j  0.6479-0.j -4.984 -0.j] -14978.766970455465
+tot grids = 134432
+energy with functional HF -14978.766970455465
+tot grids = 433792
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+Exception ignored in: <function _TemporaryFileCloser.__del__ at 0x7f6ae5f3b600>
+Traceback (most recent call last):
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 450, in __del__
+    self.close()
+  File "/home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/tempfile.py", line 446, in close
+    unlink(self.name)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpik1wrmym'
+energy with functional PBE0 -14986.141141555712
+(3, 198, 198) 198
+S vector [ 1.7663-0.j  0.2102-0.j -1.5859-0.j]
+(3, 198, 198) 198
+L vector [ 3.7967-0.j  0.4377-0.j -3.3981+0.j]
+(3, 198, 198) 198
+J vector [ 5.563 +0.j  0.6479-0.j -4.984 -0.j]
+Thu Apr 17 10:20:13 PDT 2025

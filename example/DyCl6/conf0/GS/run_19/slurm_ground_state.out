@@ -1,0 +1,461 @@
+Currently Loaded Modulefiles:
+ 1) gmp/6.2.1-gcc-13.2.0-lcnhyse <aL>             
+ 2) mpfr/4.2.0-gcc-13.2.0-yy2fkq5 <aL>            
+ 3) mpc/1.3.1-gcc-13.2.0-5kgoftq <aL>             
+ 4) zlib-ng/2.1.3-gcc-13.2.0-jetnfwa <aL>         
+ 5) zstd/1.5.5-gcc-13.2.0-t2lua3l <aL>            
+ 6) gcc/13.2.0-gcc-13.2.0-w55nxkl                 
+ 7) cmake/3.20.2-gcc-13.2.0-rp74vpv               
+ 8) libfabric/1.18.1-gcc-13.2.0-bijxar4 <aL>      
+ 9) numactl/2.0.14-gcc-13.2.0-etkf74e <aL>        
+10) openssh/8.7p1-gcc-13.2.0-g55xmkx <aL>         
+11) slurm/22.05.6-gcc-13.2.0-tchsn6y <aL>         
+12) openmpi/4.1.5-gcc-13.2.0-24q3ap2              
+13) libpciaccess/0.17-gcc-13.2.0-r2cijnn <aL>     
+14) libiconv/1.17-gcc-13.2.0-ntov4te <aL>         
+15) xz/5.4.1-gcc-13.2.0-4xkm5xo <aL>              
+16) libxml2/2.10.3-gcc-13.2.0-fr6jcjz <aL>        
+17) ncurses/6.4-gcc-13.2.0-4o2yj6n <aL>           
+18) hwloc/2.9.1-gcc-13.2.0-gzvfolk <aL>           
+19) intel-tbb/2021.9.0-gcc-13.2.0-6nwk3ml <aL>    
+20) intel-oneapi-mkl/2023.2.0-gcc-13.2.0-ohvyk7g  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+/central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/GS/run_19
+Tue Apr 15 10:54:59 PDT 2025
+hpc-35-03.cm.cluster
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   hpc-35-03
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Apr 15 10:54:59 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/GS/run_19/ground_state.py ****
+'''
+Example input to calculate the ground state of a molecular system
+Include x2c relativistic effect
+'''
+import pyscf
+from pyscf.scf.hf import RHF
+from pyscf.dft.uks import UKS
+from pyscf.dft.gks import GKS
+from pyscf import lib
+import os, sys
+import numpy as np
+import scipy.linalg as la
+from scipy.linalg import sqrtm, eigh
+from scipy.optimize import root
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+log = lib.logger.Logger(sys.stdout, 4)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import cdft, project, utils
+    from stevens.project import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 32000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+    qmmm = True # add environment with classical charges
+
+    # (c)HF/DFT parameters
+    xc = 'HF' # functional
+    smearing = None # To help HF/DFT converge, try e.g. 5e-2
+    chkfname_guess = 'project' # initial guess. 'minao' for default PySCF guess; None for constrained HF; 
+                # path to a checkpoint file to restart from a SCF solution.
+                # 'project' to project from the SCF solution in a small basis to generate the initial guess
+    chkfname_small = '../gs_small_%s.chk'%geometry # checkpoint file in a small basis. Used when chkfname_guess == 'project'
+    basis_small = {'default': 'minao', 'Dy': 'cc-x2c-minao'}# the small basis associated with chkfname_small
+    change_dm_mode = 'rotate' # None: no change
+                          # 'positive_z': set the 4f block of dm so that J~(0,0,J)
+                          # 'rotate': rotate the 4f block of dm by some angles
+    atom_index = 0 # the index of central lanthanide atom
+    occ_idx = 19
+    noise = 0 # max noise on density matrix initial guess
+
+    # constrained HF parameters for the initial guess
+    ao_shell = 'f'
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    multiplier0 = 0.1
+    # END USER INPUT
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # generate HF/DFT initial guess
+    if chkfname_guess == 'minao':
+        mf = scf.GKS(mol).x2c()
+        dm0 = mf.get_init_guess()
+        print("Use PySCF default init guess")
+    elif chkfname_guess is None:
+        # run constrained DFT
+        angles = cdft.sample_rotation('xyz', occ_idx, unit=20)
+        from scipy.spatial.transform import Rotation
+        direction = Rotation.from_euler('zyz', angles, degrees=False) @ [0,0,1]
+        cmf = cdft.CGKS(mol, direction, multiplier_guess=multiplier0, max_cycle=300,
+                atom_index=atom_index, ao_shell='f', lo_chkfname=lo_chkfname, xc=xc, smearing=smearing)
+        cmf.kernel()
+        dm0 = cmf._scf.make_rdm1()
+        print("Contrained SCF solution as init guess")
+    elif chkfname_guess == 'project':
+        # project dm0 in a small basis to the larger basis 
+        dm0 = utils.project_dm_from_small_basis(mol, basis_small, chkfname_small, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+        print("Project wavefunction in a smaller basis to the target basis as init guess")
+    else:
+        mf = scf.GKS(mol).x2c()
+        data = chkfile.load(chkfname_guess, 'scf')
+        mf.__dict__.update(data)
+        dm0 = mf.make_rdm1()
+        mf.analyze(with_meta_lowdin=False)
+        print("Load .chk file for init guess")
+    if change_dm_mode is not None and not chkfname_guess == 'project': # when chkfname_guess == 'project', change in small basis
+        dm0 = utils.change_dm_guess(mol, dm0, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+    dm0 += (np.random.rand(*(dm0.shape)) - 0.5) * noise  
+    print("J vector of initial guess", get_mj(mol, dm0, analyze=True))
+
+    # run HF/DFT
+    mf = scf.GKS(mol).x2c()
+    mf.xc = xc
+    if xc.upper() != 'HF':
+        mf.collinear = 'mcol'
+        mf.grids.level = 6 
+    mf.chkfile = 'gs_' + geometry + '.chk' 
+    mf.max_cycle = 1000 
+    if smearing is not None:
+        mf = scf.addons.smearing_(mf, sigma=smearing, method="fermi")
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = mf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        mf.get_hcore = types.MethodType(get_hcore_mm, mf)
+    mf.kernel(dm0=dm0)
+    dm = mf.make_rdm1()
+    print("S vector", get_mj(mol, dm, include_L=False))
+    print("L vector", get_mj(mol, dm, include_S=False))
+    print("J vector", get_mj(mol, dm))
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-35-03.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 8
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Tue Apr 15 10:55:00 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         2.45
+N_elec (88, 83), N_ao 198
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/GS/run_19/ground_state.py ****
+'''
+Example input to calculate the ground state of a molecular system
+Include x2c relativistic effect
+'''
+import pyscf
+from pyscf.scf.hf import RHF
+from pyscf.dft.uks import UKS
+from pyscf.dft.gks import GKS
+from pyscf import lib
+import os, sys
+import numpy as np
+import scipy.linalg as la
+from scipy.linalg import sqrtm, eigh
+from scipy.optimize import root
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+log = lib.logger.Logger(sys.stdout, 4)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import cdft, project, utils
+    from stevens.project import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 32000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+    qmmm = True # add environment with classical charges
+
+    # (c)HF/DFT parameters
+    xc = 'HF' # functional
+    smearing = None # To help HF/DFT converge, try e.g. 5e-2
+    chkfname_guess = 'project' # initial guess. 'minao' for default PySCF guess; None for constrained HF; 
+                # path to a checkpoint file to restart from a SCF solution.
+                # 'project' to project from the SCF solution in a small basis to generate the initial guess
+    chkfname_small = '../gs_small_%s.chk'%geometry # checkpoint file in a small basis. Used when chkfname_guess == 'project'
+    basis_small = {'default': 'minao', 'Dy': 'cc-x2c-minao'}# the small basis associated with chkfname_small
+    change_dm_mode = 'rotate' # None: no change
+                          # 'positive_z': set the 4f block of dm so that J~(0,0,J)
+                          # 'rotate': rotate the 4f block of dm by some angles
+    atom_index = 0 # the index of central lanthanide atom
+    occ_idx = 19
+    noise = 0 # max noise on density matrix initial guess
+
+    # constrained HF parameters for the initial guess
+    ao_shell = 'f'
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    multiplier0 = 0.1
+    # END USER INPUT
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # generate HF/DFT initial guess
+    if chkfname_guess == 'minao':
+        mf = scf.GKS(mol).x2c()
+        dm0 = mf.get_init_guess()
+        print("Use PySCF default init guess")
+    elif chkfname_guess is None:
+        # run constrained DFT
+        angles = cdft.sample_rotation('xyz', occ_idx, unit=20)
+        from scipy.spatial.transform import Rotation
+        direction = Rotation.from_euler('zyz', angles, degrees=False) @ [0,0,1]
+        cmf = cdft.CGKS(mol, direction, multiplier_guess=multiplier0, max_cycle=300,
+                atom_index=atom_index, ao_shell='f', lo_chkfname=lo_chkfname, xc=xc, smearing=smearing)
+        cmf.kernel()
+        dm0 = cmf._scf.make_rdm1()
+        print("Contrained SCF solution as init guess")
+    elif chkfname_guess == 'project':
+        # project dm0 in a small basis to the larger basis 
+        dm0 = utils.project_dm_from_small_basis(mol, basis_small, chkfname_small, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+        print("Project wavefunction in a smaller basis to the target basis as init guess")
+    else:
+        mf = scf.GKS(mol).x2c()
+        data = chkfile.load(chkfname_guess, 'scf')
+        mf.__dict__.update(data)
+        dm0 = mf.make_rdm1()
+        mf.analyze(with_meta_lowdin=False)
+        print("Load .chk file for init guess")
+    if change_dm_mode is not None and not chkfname_guess == 'project': # when chkfname_guess == 'project', change in small basis
+        dm0 = utils.change_dm_guess(mol, dm0, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+    dm0 += (np.random.rand(*(dm0.shape)) - 0.5) * noise  
+    print("J vector of initial guess", get_mj(mol, dm0, analyze=True))
+
+    # run HF/DFT
+    mf = scf.GKS(mol).x2c()
+    mf.xc = xc
+    if xc.upper() != 'HF':
+        mf.collinear = 'mcol'
+        mf.grids.level = 6 
+    mf.chkfile = 'gs_' + geometry + '.chk' 
+    mf.max_cycle = 1000 
+    if smearing is not None:
+        mf = scf.addons.smearing_(mf, sigma=smearing, method="fermi")
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = mf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        mf.get_hcore = types.MethodType(get_hcore_mm, mf)
+    mf.kernel(dm0=dm0)
+    dm = mf.make_rdm1()
+    print("S vector", get_mj(mol, dm, include_L=False))
+    print("L vector", get_mj(mol, dm, include_S=False))
+    print("J vector", get_mj(mol, dm))
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-35-03.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 8
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Tue Apr 15 10:55:00 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 16
+number of NR pGTOs = 511
+number of NR cGTOs = 89
+basis = {'default': 'minao', 'Dy': 'cc-x2c-minao'}
+ecp = {}
+CPU time:         2.51
+basis {'default': '631g', 'Dy': 'sarc-dkh'} 198
+basis {'default': 'minao', 'Dy': 'cc-x2c-minao'} 89
+(3, 89, 89) 89
+Haar random target direction [-1.0, 1.2246467991473532e-16, 6.123233995736766e-17]
+Haar random total rotation [0.     1.5708 3.1416]
+Rotated f-block dm by angles from +z [0.     1.5708 3.1416]
+Project wavefunction in a smaller basis to the target basis as init guess
+(3, 198, 198) 198
+elemental J of ['Cl' 'Dy']
+  Cl 0.0007-0.0000j 0.0000+0.0000j 0.0310+0.0000j 
+  Dy -7.4585+0.0000j 0.0000+0.0000j -0.0169+0.0000j 
+J vector of initial guess [-7.4576-0.j -0.    +0.j  0.0141+0.j]
+
+
+******** <class 'pyscf.x2c.x2c.X2C1eGKS'> ********
+method = X2C1eGKS
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+diis_damp = 0
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 1000
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = gs_DyCl6.chk
+max_memory 32000 MB (current use 164 MB)
+XC library pyscf.dft.libxc version 6.1.0
+    S. Lehtola, C. Steigemann, M. J.T. Oliveira, and M. A.L. Marques.,  SoftwareX 7, 1–5 (2018)
+XC functionals = HF
+
+radial grids: 
+    Treutler-Ahlrichs [JCP 102, 346 (1995); DOI:10.1063/1.469408] (M4) radial grids
+    
+becke partition: Becke, JCP 88, 2547 (1988); DOI:10.1063/1.454033
+pruning grids: <function nwchem_prune at 0x7f3beaf29e40>
+grids dens level: 3
+symmetrized grids: False
+atomic radii adjust function: <function treutler_atomic_radii_adjust at 0x7f3beaf2a480>
+small_rho_cutoff = 1e-07
+collinear = col
+
+
+******** <class 'pyscf.x2c.x2c.SpinOrbitalX2CHelper'> ********
+approx = 1e
+xuncontract = 1
+Overwritten attributes  get_hcore  of <class 'pyscf.x2c.x2c.X2C1eGKS'>
+Set gradient conv threshold to 3.16228e-05
+tot grids = 134432
+init E= -14971.0804098679
+  HOMO = -0.282964950029426  LUMO = -0.0661336592614871
+cycle= 1 E= -14978.605485138  delta_E= -7.53  |g|= 1.63  |ddm|= 2.41
+  HOMO = -0.297398759876605  LUMO = 0.124180441955823
+cycle= 2 E= -14978.7091240422  delta_E= -0.104  |g|= 0.674  |ddm|= 1.11
+  HOMO = -0.322153073588193  LUMO = 0.122305068896285
+cycle= 3 E= -14978.761138638  delta_E= -0.052  |g|= 0.275  |ddm|= 0.513
+  HOMO = -0.322300583031613  LUMO = 0.122628599025924
+cycle= 4 E= -14978.7670630135  delta_E= -0.00592  |g|= 0.0217  |ddm|= 0.091
+  HOMO = -0.323486267067489  LUMO = 0.122825533099971
+cycle= 5 E= -14978.7672716573  delta_E= -0.000209  |g|= 0.00617  |ddm|= 0.025
+  HOMO = -0.323349372393766  LUMO = 0.122831827934703
+cycle= 6 E= -14978.7673331747  delta_E= -6.15e-05  |g|= 0.00491  |ddm|= 0.0108
+  HOMO = -0.323402664677849  LUMO = 0.122838265797333
+cycle= 7 E= -14978.7674168732  delta_E= -8.37e-05  |g|= 0.00364  |ddm|= 0.0142
+  HOMO = -0.323266480372411  LUMO = 0.122835360176626
+cycle= 8 E= -14978.7674992255  delta_E= -8.24e-05  |g|= 0.00167  |ddm|= 0.023
+  HOMO = -0.323360314829995  LUMO = 0.122832403135541
+cycle= 9 E= -14978.767514752  delta_E= -1.55e-05  |g|= 0.0006  |ddm|= 0.0123
+  HOMO = -0.323352425041884  LUMO = 0.122831698365545
+cycle= 10 E= -14978.7675157826  delta_E= -1.03e-06  |g|= 0.000346  |ddm|= 0.0025
+  HOMO = -0.323358939515102  LUMO = 0.122832161281747
+cycle= 11 E= -14978.7675161266  delta_E= -3.44e-07  |g|= 0.000201  |ddm|= 0.00121
+  HOMO = -0.323357531564421  LUMO = 0.122832580291503
+cycle= 12 E= -14978.7675162624  delta_E= -1.36e-07  |g|= 0.000115  |ddm|= 0.000676
+  HOMO = -0.323360528620207  LUMO = 0.122832115280756
+cycle= 13 E= -14978.7675163132  delta_E= -5.08e-08  |g|= 6.92e-05  |ddm|= 0.000464
+  HOMO = -0.323357275759231  LUMO = 0.122832170276453
+cycle= 14 E= -14978.767516328  delta_E= -1.47e-08  |g|= 5.66e-05  |ddm|= 0.0002
+  HOMO = -0.323357725506923  LUMO = 0.12283221340126
+cycle= 15 E= -14978.7675163371  delta_E= -9.17e-09  |g|= 5.1e-05  |ddm|= 0.000126
+  HOMO = -0.32335773336776  LUMO = 0.122832200112092
+cycle= 16 E= -14978.7675163537  delta_E= -1.66e-08  |g|= 4.18e-05  |ddm|= 0.000259
+  HOMO = -0.323357643678966  LUMO = 0.122832252684298
+cycle= 17 E= -14978.7675163703  delta_E= -1.65e-08  |g|= 3.37e-05  |ddm|= 0.00034
+  HOMO = -0.323358181513936  LUMO = 0.122832143073841
+cycle= 18 E= -14978.7675163798  delta_E= -9.58e-09  |g|= 2.82e-05  |ddm|= 0.000247
+  HOMO = -0.323357995980976  LUMO = 0.122832221413526
+cycle= 19 E= -14978.767516388  delta_E= -8.15e-09  |g|= 2.24e-05  |ddm|= 0.000267
+  HOMO = -0.323358038782012  LUMO = 0.122832193123557
+cycle= 20 E= -14978.7675163925  delta_E= -4.49e-09  |g|= 1.86e-05  |ddm|= 0.0002
+  HOMO = -0.323357815040996  LUMO = 0.122832211396822
+cycle= 21 E= -14978.7675163947  delta_E= -2.23e-09  |g|= 1.61e-05  |ddm|= 0.000125
+  HOMO = -0.323357916067041  LUMO = 0.122832222628455
+cycle= 22 E= -14978.7675163968  delta_E= -2.1e-09  |g|= 1.3e-05  |ddm|= 0.000127
+  HOMO = -0.323357769136413  LUMO = 0.122832202596376
+cycle= 23 E= -14978.7675163986  delta_E= -1.82e-09  |g|= 9.71e-06  |ddm|= 0.000146
+  HOMO = -0.323357952287274  LUMO = 0.122832196047298
+cycle= 24 E= -14978.7675163994  delta_E= -8.19e-10  |g|= 7.97e-06  |ddm|= 8.72e-05
+  HOMO = -0.323357866948049  LUMO = 0.122832209092519
+Extra cycle  E= -14978.7675163995  delta_E= -6.91e-11  |g|= 7.53e-06  |ddm|= 8.58e-06
+converged SCF energy = -14978.7675163995  <S^2> = 8.2691518  2S+1 = 5.8375172
+(3, 198, 198) 198
+S vector [-2.3832-0.j -0.    +0.j  0.0026+0.j]
+(3, 198, 198) 198
+L vector [-5.1165+0.j -0.    +0.j  0.0044-0.j]
+(3, 198, 198) 198
+J vector [-7.4997+0.j -0.    +0.j  0.007 -0.j]
+Tue Apr 15 10:55:41 PDT 2025

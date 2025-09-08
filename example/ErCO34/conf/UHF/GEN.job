@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --qos=shared
+#SBATCH --nodes=1
+#SBATCH --time=6:00:00
+#SBATCH --constraint=cpu
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=128
+#SBATCH --mail-type=END,FAIL
+#SBATCH --output=slurm_UHF_state.out
+
+export OMP_NUM_THREADS=64
+module list
+pwd
+date
+srun hostname
+python -u ./ground_state.py
+date

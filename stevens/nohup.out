@@ -1,0 +1,949 @@
+May 21 06:46:53 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+#INFO: **** input file is /central/groups/changroup/members/lppeng/stevens/stevens/stevens/cdft.py ****
+'''
+constrained dft with given direction of angular momentum
+Penalty method following VASP's I_CONSTRAINED_M=1 implementation
+<vasp.at/wiki/index.php/I_CONSTRAINED_M>
+'''
+import pyscf
+from pyscf import scf, dft, lib, lo, x2c
+from pyscf.lib import chkfile
+import os, sys
+import h5py
+import numpy as np
+import scipy.linalg as la
+from stevens import localize
+from stevens import momentum 
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+MINAO = {'default': 'minao', 'Ho': 'sarcdkhminao', 'Er': 'sarcdkhminao', 'Dy': 'sarcdkhminao'}
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+
+class CGKS(lib.StreamObject):
+    def __init__(self, mol, direction, multiplier_guess=1, max_cycle=500, verbose=0, 
+            lo_chkfname=None, atom_index=0, ao_shell='f', ao_index=None, 
+            spin_separate=False, xc='HF', smearing=None, lo_from_umf=True, kpts=[[0,0,0]],
+            gdf=None, gdf_fname='gdf_ints.h5', *args, **kwargs):
+        self.mol = mol
+        has_pbc = getattr(mol, 'dimension', 0) > 0
+        if has_pbc:
+            from pyscf.pbc import scf, dft, x2c, gto
+            # TODO implement multiple k-point
+            self.kpts = kpts
+        else:
+            from pyscf import scf, dft, x2c, gto
+        if xc.upper() != 'HF':
+            if has_pbc:
+                gmf = dft.GKS(mol, kpts[0]).density_fit().x2c() ### TODO
+                gmf.exxdiv = None
+                gmf.with_df = gdf
+                gmf.with_df._cderi = gdf_fname
+                if xc.upper() != 'LDA':
+                    raise NotImplementedError
+                gmf.xc = xc
+            else:
+                gmf = dft.GKS(mol).x2c()
+                gmf.xc = xc
+            gmf.collinear = 'mcol'
+            gmf.grids.level = 4
+        else:
+            if has_pbc:
+                gmf = scf.GHF(mol, kpts[0]).density_fit().x2c() ### TODO
+                gmf.exxdiv = None
+                gmf.with_df = gdf
+                gmf.with_df._cderi = gdf_fname
+            else:
+                ### TODO
+                #gmf = scf.GHF(mol).x2c()
+                gmf = dft.GKS(mol).x2c()
+                gmf.xc = xc
+                ###
+        if smearing is not None:
+            gmf = scf.addons.smearing_(gmf, sigma=smearing, method="fermi")
+        gmf.chkfile = 'constrained_chkfile.chk'
+        self._scf = gmf #x2c.x2c.x2c1e_ghf(gmf)
+        self.veff_ks = self._scf.get_veff
+        if has_pbc:
+            self.get_veff = self.get_veff_cell
+        else:
+            self.get_veff = self.get_veff_mol
+        if max_cycle is not None:
+            self._scf.max_cycle = max_cycle
+
+
+        # make direction a unit vector
+        assert la.norm(direction) > 1e-6 # otherwise need to rescale input direction
+        direction = np.array(direction) / la.norm(direction)
+        self.direction = direction
+        print("target direction:", self.direction)
+
+        self.lagrange_multiplier = 1 if multiplier_guess is None else multiplier_guess
+        if has_pbc:
+            self.ao_ovlp = np.array(mol.pbc_intor('int1e_ovlp', hermi=0, kpts=kpts,
+                               pbcopt=lib.c_null_ptr()))[0] ### TODO
+            self.l_integral = (np.array(mol.pbc_intor('int1e_cg_irxp', kpts=kpts)) *(-1j))[0] ### TODO
+        else:
+            self.ao_ovlp = mol.intor_symmetric('int1e_ovlp') 
+            self.l_integral = mol.intor('int1e_cg_irxp') *(-1j)
+        self.dmj = self.get_dmj().transpose(0,2,1)
+
+        # localize orbitals to define the lanthanide f-shells 
+        if lo_chkfname is not None:
+            # use a mf solution loaded from lo_chkfname to construct Intrinsic Atomic Orbital (IAO)
+            c_lo = self.get_iao(lo_chkfname, from_umf=lo_from_umf, verbose=verbose) 
+            c_lo = self.trunc_lo(c_lo, atom_index, ao_shell, ao_index, spin_separate)
+            ao_ovlp = la.block_diag(self.ao_ovlp, self.ao_ovlp) 
+            self.lo_proj = c_lo @ c_lo.conj().T @ ao_ovlp 
+            self.dmj = np.einsum('ki,xij,jl->xkl', self.lo_proj.T.conj(), self.dmj, self.lo_proj, optimize=True)
+        else:
+            self.lo_proj = None 
+
+    def get_iao(self, lo_chkfname, from_umf, verbose=False, diff_spin=False): 
+        if lo_chkfname == 'c_lo.npy':
+            c_lo = np.load(lo_chkfname)
+            ao_ovlp = la.block_diag(self.ao_ovlp, self.ao_ovlp) 
+            log.info("LO error from I %s" % np.max(np.abs(c_lo.T.conj() @ ao_ovlp @ c_lo - np.eye(c_lo.shape[-1]))))
+            return c_lo 
+        elif lo_chkfname[-2:] == 'h5':
+            # directly input c_lo
+            feri = h5py.File(lo_chkfname, 'r')
+            c_lo = np.array(feri['c_lo'])
+            feri.close()
+            ao_ovlp = la.block_diag(self.ao_ovlp, self.ao_ovlp) 
+            log.info("LO error from I %s" % np.max(np.abs(c_lo.T.conj() @ ao_ovlp @ c_lo - np.eye(c_lo.shape[-1]))))
+            return c_lo
+        mol = self.mol
+        if from_umf:
+            ao_ovlp = self.ao_ovlp
+        else:
+            ao_ovlp = la.block_diag(self.ao_ovlp, self.ao_ovlp) 
+        c_lo = localize.get_iao(mol, lo_chkfname, from_umf, ao_ovlp=ao_ovlp, verbose=verbose, diff_spin=diff_spin)
+        return c_lo 
+
+    def trunc_lo(self, c_lo, atom_index, ao_shell, ao_index, spin_separate=False):
+        mol = self.mol
+        nao = mol.nao
+        # select LO to rotate
+        ao_labels = mol.ao_labels()
+        if ao_index is None:
+            assert ao_shell is not None
+            ao_slice = mol.aoslice_by_atom()[atom_index] 
+            ao_index = []
+            for i in range(ao_slice[2], ao_slice[3]):
+                if ao_shell in ao_labels[i]:
+                    ao_index.append(i)
+        if spin_separate:
+            self.ao_index = ao_index
+        else:
+            self.ao_index = np.append(ao_index, np.array(ao_index) + nao)  
+        if mpirank == 0:
+            print("ao_index", self.ao_index)
+            print("ao_labels", np.array(ao_labels)[ao_index])
+        c_lo = c_lo[:, self.ao_index] # no longer unitary rotation
+        return c_lo
+
+    def get_veff_mol(self, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1, **kwargs):
+        if mol is None:
+            mol = self.mol
+        if dm is None:
+            dm = self.make_rdm1()
+        # veff is nonlinear wrt dm due to the new penalty term
+        # Therefore, we compute the new vhf with the full dm instead of change of dm
+        dm_last = 0
+        vhf_last = 0
+        veff = \
+            self.veff_ks(mol=mol, dm=dm, dm_last=dm_last, vhf_last=vhf_last, hermi=hermi, **kwargs)
+        
+        nao = mol.nao
+        J = np.array([np.sum(self.dmj[x] * dm.T) for x in range(3)])
+        assert np.max(np.abs(J.imag)) < 1e-10
+        J = J.real
+        log.info("J vector %s", J)
+        dveff = self.lagrange_multiplier * np.einsum('x,xij->ij', J / la.norm(J) - self.direction, self.dmj)
+        d_energy = self.lagrange_multiplier * (la.norm(J) - self.direction.dot(J))  
+        log.info("energy penalty %s", d_energy)
+        assert d_energy >= -1e-10 # otherwise self.direction may fail to be a unit vector
+        if hasattr(veff, 'ecoul'):
+            # KS
+            veff = lib.tag_array(veff + dveff, ecoul=veff.ecoul, \
+                    exc=veff.exc + d_energy , vj=veff.vj, vk=veff.vk)
+        else:
+            # HF
+            veff += dveff
+        return veff 
+
+    def get_veff_cell(self, cell=None, dm=None, dm_last=0, vhf_last=0, hermi=1, kpt=None, kpts_band=None, **kwargs):
+        if cell is None:
+            cell = self.cell
+        if dm is None:
+            dm = self.make_rdm1()
+        if kpt is None:
+            kpt = self.kpts[0]
+        veff = \
+            self.veff_ks(cell=cell, dm=dm, dm_last=dm_last, vhf_last=vhf_last, hermi=hermi, kpt=kpt,
+                         kpts_band=kpts_band, **kwargs)
+        
+        nao = cell.nao
+        J = np.array([np.trace(self.dmj[x] @ dm) for x in range(3)])
+        assert np.max(np.abs(J.imag)) < 1e-10
+        J = J.real
+        log.info("J vector %s", J)
+        dveff = self.lagrange_multiplier * np.einsum('x,xij->ij', J / la.norm(J) - self.direction, self.dmj)
+        d_energy = self.lagrange_multiplier * (la.norm(J) - self.direction.dot(J))  
+        log.info("energy penalty %s", d_energy)
+        assert d_energy >= -1e-10 # otherwise self.direction may fail to be a unit vector
+        if hasattr(veff, 'ecoul'):
+            # KS
+            veff = lib.tag_array(veff + dveff, ecoul=veff.ecoul, \
+                    exc=veff.exc + d_energy , vj=veff.vj, vk=veff.vk)
+        else:
+            # HF
+            veff += dveff
+        return veff 
+
+        
+    def get_mj(self, dm=None, ao_ovlp=None, l_integral=None):
+        if dm is None:
+            dm = self._scf.make_rdm1()
+        if ao_ovlp is None:
+            ao_ovlp = self.ao_ovlp
+        if l_integral is None:
+            l_integral = self.l_integral
+        return momentum.get_mj(self.mol, dm, ao_ovlp=ao_ovlp, l_integral=l_integral)
+
+    def get_dmj(self, ao_ovlp=None, l_integral=None):
+        nao = self.mol.nao
+        if ao_ovlp is None:
+            ao_ovlp = self.ao_ovlp
+        if l_integral is None:
+            l_integral = self.l_integral
+        return momentum.get_dmj(ao_ovlp=ao_ovlp, l_integral=l_integral, mol=self.mol)
+
+    def get_dmj_numerical(self, dm, dx=1e-4):
+        dm = np.array(dm)
+        nao = self.mol.nao
+
+        dmj = np.zeros((3,2*nao,2*nao), dtype=complex)
+        for i in range(dm.shape[1]):
+            for j in range(dm.shape[2]):
+                dm_p = dm.copy()
+                dm_p[i,j] += dx / 2
+                mj_p = self.get_mj(dm_p)
+                dm_m = dm.copy()
+                dm_m[i,j] -= dx / 2
+                mj_m = self.get_mj(dm_m)
+                dmj[:,i,j] += (mj_p - mj_m) / dx
+        return (dmj + dmj.transpose(0,2,1).conj()) / 2
+
+    def kernel(self, **kwargs):
+
+        def root_finding_function(lagrange_multiplier_input):
+            self.lagrange_multiplier = lagrange_multiplier_input
+            self._scf.get_veff = self.get_veff
+            self._scf.kernel(**kwargs)
+            dm = self._scf.make_rdm1()
+            mj = self.get_mj(dm)
+            self.lagrange_multiplier =  0
+            energy = self._scf.energy_tot(dm=dm)
+            log.info("**J_vector, dft energy** %s  %s", mj, energy)
+            return mj, energy
+        
+        result = root_finding_function(self.lagrange_multiplier)
+        return result
+
+def get_dm_guess(mol, dm, shell='4f'):
+    # revise a dm such that the 4f occupation satisfies the hund's rule for Ho3+
+    ao_lst = []
+    ao_labels = mol.ao_labels()
+    for i in range(len(ao_labels)):
+        if ao_labels[i].split()[2][:len(shell)] == shell:
+            ao_lst.append(i)
+    if shell[-1] == 'f':
+        l = 3
+    elif shell[-1] == 'd':
+        l = 2
+    elif shell[-1] == 'p':
+        l = 1
+    rot = pyscf.symm.sph.sph_pure2real(l, reorder_p=True) 
+    l_integral = mol.intor('int1e_cg_irxp') *(-1j)
+    dm = dm.reshape(2, nao, 2, nao).transpose(0,2,1,3)
+    dmaa = dm[0,0]
+    dmbb = dm[1,1]
+    print('original dmaa in pure AO of shell',shell, rot @ dmaa[np.ix_(ao_lst, ao_lst)] @ rot.conj().T)
+    print('original dmbb in pure AO of shell',shell, rot @ dmbb[np.ix_(ao_lst, ao_lst)] @ rot.conj().T)
+    tmp = np.zeros((len(ao_lst), len(ao_lst)))
+    tmp[[4,5,6],[4,5,6]] = 1
+    dmbb[np.ix_(ao_lst, ao_lst)] = rot.conj().T @ tmp @ rot
+    print("lz from guessed 4f bb pureAO", np.diag(rot @ l_integral[2][ao_lst][:, ao_lst] @ rot.conj().T @ tmp))
+    dm[1,1] = dmbb
+    tmp = np.eye(len(ao_lst))
+    dmaa[np.ix_(ao_lst, ao_lst)] = rot.conj().T @ tmp @ rot
+    dm[0,0] = dmaa
+    print("lz from guessed 4f aa pure AO", np.diag(rot @ l_integral[2][ao_lst][:, ao_lst] @ rot.conj().T @ tmp))
+    dm = dm.transpose(0,2,1,3).reshape(2*nao, 2*nao)
+    return dm
+
+def sample_direction(plane, idx, unit=20):
+    if plane == 'xz':
+        direction = [np.sin(np.pi/unit * idx), 0, np.cos(np.pi/unit * idx)]
+    elif plane == 'yz':
+        direction = [0, np.sin(np.pi/unit * idx), np.cos(np.pi/unit * idx)]
+    elif plane == 'xy': 
+        direction = [np.sin(np.pi/unit * idx), np.cos(np.pi/unit * idx), 0]
+    elif plane == 'random':
+        theta = np.random.rand(1)[0]*2-1
+        theta = np.arcsin(theta) + np.pi/2 
+        phi = np.random.rand(1)[0]*np.pi*2
+        direction = [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)]
+        log.info("Haar random target direction %s" % direction)
+    return direction
+
+def sample_rotation(plane, idx, unit=20, dir_init=(0,0,1), return_direction=False):
+    # First we need to orient the initial direction to the +z direction
+    dir_init = np.array(dir_init) / la.norm(dir_init)
+    dir_init = dir_init.real
+    angle_init = [np.arctan2(dir_init[1], dir_init[0]), -np.arccos(dir_init[2]), 0]
+
+    # then calculate the [0, thete, phi] rotation angles needed to rotate +z to the desired direction
+    if plane == 'xz':
+        rotation = [0, np.pi / unit * idx, 0]
+    elif plane == 'yz':
+        rotation = [0, np.pi / unit * idx, np.pi / 2]
+    elif plane == 'xy': 
+        rotation = [0, np.pi / 2, np.pi / unit * idx]
+    elif plane == 'xyz':
+        idx = idx % unit 
+        unit = int(unit//2)
+        if idx < unit:
+            rotation = [0, np.pi / unit * idx, 0]
+        else:
+            rotation = [0, np.pi / 2, np.pi / unit * (idx - unit + 1)]
+    elif plane == 'random':
+        theta = np.random.rand(1)[0]*2-1
+        theta = np.arcsin(theta) + np.pi/2 
+        phi = np.random.rand(1)[0]*np.pi*2
+        rotation = [0, theta, phi]
+    _, theta, phi = rotation 
+    direction = [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)]
+    log.info("Haar random target direction %s" % direction)
+
+    # then combine two rotations
+    rotation = np.array([angle_init[0], angle_init[1], 0]) + np.array(rotation)
+    log.info("Haar random total rotation %s" % rotation)
+    if return_direction:
+        return rotation, direction
+    else:
+        return rotation
+
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib, x2c
+    from stevens import utils
+    
+    # molecule setup
+    ao_shell = 'f'
+    mol = gto.Mole()
+    mol.atom = '''
+    Ho        0.000000    0.000000    0.000000'''
+    mol.basis = 'sarc-dkh'
+    mol.spin = 4
+    mol.charge = 3 
+    mol.verbose = 4
+    mol.build()
+    log.info("%s", mol.nelec)
+    log.info("nao %s", mol.nao)
+
+    # set up constrained HF
+    multiplier = 0.01
+    required_direction = np.random.rand(3) - 0.5
+    required_direction = required_direction / la.norm(required_direction)
+    mf = CGKS(mol, required_direction, multiplier_guess=multiplier, max_cycle=100, verbose=4,
+            lo_chkfname='uhf_gs', atom_index=0, ao_shell=ao_shell)
+    # generate a density matrix initial guess whose J vector is relatively close to required_direction
+    dm0 = mf._scf.get_init_guess()
+    dm0 = utils.change_dm_guess(mol, dm0, 'positive_z', atom_index=0, ao_shell=ao_shell) 
+    dm0 = utils.change_dm_guess(mol, dm0, 'rotate', atom_index=0, ao_shell=ao_shell, direction=required_direction)
+    log.info("init J vector %s", momentum.get_mj(mol, dm0))
+    # run constrained HF 
+    sol = mf.kernel(dm0=dm0)
+    mj_opt = sol[0]
+    # use "max" below to avoid division by 0 when mj_opt = [0,0,0]
+    assert la.norm(mj_opt/max(0.0001, la.norm(mj_opt)) - required_direction) < 1e-3
+
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='login3.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 14
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Wed May 21 06:46:58 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 1
+[INPUT] num. electrons = 64
+[INPUT] charge = 3
+[INPUT] spin (= nelec alpha-beta = 2S) = 4
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Ho     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+
+nuclear repulsion = 0
+number of shells = 42
+number of NR pGTOs = 173
+number of NR cGTOs = 120
+basis = sarc-dkh
+ecp = {}
+CPU time:         3.21
+(34, 30)
+nao 120
+target direction: [-0.437172890395  0.745588781394  0.502968421437]
+(3, 120, 120) 120
+localization from unrestricted solution
+Running UHF to obtain intrinsic atomic orbital
+
+
+******** <class 'pyscf.x2c.sfx2c1e.sfX2C1eUHF'> ********
+method = sfX2C1eUHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+diis_damp = 0
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 50
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = uhf_gs.chk
+max_memory 4000 MB (current use 129 MB)
+number electrons alpha = 34  beta = 30
+
+
+******** <class 'pyscf.x2c.sfx2c1e.SpinFreeX2CHelper'> ********
+approx = 1e
+xuncontract = 1
+Set gradient conv threshold to 3.16228e-05
+init E= -12605.2324818527
+
+WARN: alpha nocc = 34  HOMO 0.0569801160965654 >= LUMO 0.0569801161061082
+
+
+WARN: beta  nocc = 30  HOMO 0.0402361632776347 >= LUMO 0.0402361632778181
+
+
+WARN: system HOMO 0.0569801160965654 >= system LUMO 0.0402361632778181
+
+cycle= 1 E= -12534.1987704777  delta_E=   71  |g|= 14.6  |ddm|= 14.2
+  alpha nocc = 34  HOMO = -10.1289140578612  LUMO = -7.58227697912028
+  beta  nocc = 30  HOMO = -12.7168463618433  LUMO = -11.9137178026233
+
+WARN: system HOMO -10.1280570367921 >= system LUMO -11.9137178026233
+
+cycle= 2 E= -12581.3678306381  delta_E= -47.2  |g|= 16.7  |ddm|= 16.7
+  alpha nocc = 34  HOMO = -5.52345961385748  LUMO = -3.35407091552395
+
+WARN: beta  nocc = 30  HOMO -5.64181570382306 >= LUMO -5.64181399587948
+
+
+WARN: system HOMO -5.04693193073165 >= system LUMO -5.64181399587948
+
+cycle= 3 E= -12598.8563545667  delta_E= -17.5  |g|= 6.69  |ddm|= 6.74
+  alpha nocc = 34  HOMO = -2.63407726909501  LUMO = -1.59521172002329
+  beta  nocc = 30  HOMO = -2.57391462239654  LUMO = -2.56541980191422
+cycle= 4 E= -12607.3683218105  delta_E= -8.51  |g|= 0.759  |ddm|=  3.9
+  alpha nocc = 34  HOMO = -1.83546856606878  LUMO = -0.79706481210253
+  beta  nocc = 30  HOMO = -1.70583733480023  LUMO = -0.770144808409154
+cycle= 5 E= -12607.4907677323  delta_E= -0.122  |g|= 0.265  |ddm|= 0.807
+  alpha nocc = 34  HOMO = -1.79842712219787  LUMO = -0.73724871608634
+  beta  nocc = 30  HOMO = -1.65229444430421  LUMO = -0.713146770607059
+cycle= 6 E= -12607.5016540323  delta_E= -0.0109  |g|= 0.151  |ddm|= 0.179
+  alpha nocc = 34  HOMO = -1.77350263472936  LUMO = -0.726372652361985
+  beta  nocc = 30  HOMO = -1.62469295951864  LUMO = -0.704655450057721
+cycle= 7 E= -12607.5052380461  delta_E= -0.00358  |g|= 0.0651  |ddm|= 0.0655
+  alpha nocc = 34  HOMO = -1.74604736653499  LUMO = -0.714535875717237
+  beta  nocc = 30  HOMO = -1.59823114581011  LUMO = -0.697371420780742
+cycle= 8 E= -12607.5079098185  delta_E= -0.00267  |g|= 0.0275  |ddm|= 0.0671
+  alpha nocc = 34  HOMO = -1.74835597781719  LUMO = -0.71499649648665
+  beta  nocc = 30  HOMO = -1.60107502440651  LUMO = -0.697787011566767
+cycle= 9 E= -12607.5088426335  delta_E= -0.000933  |g|= 0.0279  |ddm|= 0.0235
+  alpha nocc = 34  HOMO = -1.74060290588374  LUMO = -0.715401831846745
+  beta  nocc = 30  HOMO = -1.58727823051902  LUMO = -0.697314411896157
+cycle= 10 E= -12607.5003235714  delta_E= 0.00852  |g|= 0.0181  |ddm|= 0.271
+  alpha nocc = 34  HOMO = -1.7429910931123  LUMO = -0.715781110823636
+  beta  nocc = 30  HOMO = -1.58481311661565  LUMO = -0.697578068284636
+cycle= 11 E= -12607.4978286806  delta_E= 0.00249  |g|= 0.0125  |ddm|= 0.156
+  alpha nocc = 34  HOMO = -1.74827126448132  LUMO = -0.715079244706932
+  beta  nocc = 30  HOMO = -1.58529248492574  LUMO = -0.697683280132777
+cycle= 12 E= -12607.4971197541  delta_E= 0.000709  |g|= 0.00712  |ddm|= 0.112
+  alpha nocc = 34  HOMO = -1.74750215607206  LUMO = -0.715538185903946
+  beta  nocc = 30  HOMO = -1.58495703415532  LUMO = -0.697695349375305
+cycle= 13 E= -12607.497103074  delta_E= 1.67e-05  |g|= 0.00783  |ddm|= 0.0158
+  alpha nocc = 34  HOMO = -1.74707215072217  LUMO = -0.715596031263654
+  beta  nocc = 30  HOMO = -1.58465038204428  LUMO = -0.697684826957647
+cycle= 14 E= -12607.4970794763  delta_E= 2.36e-05  |g|= 0.0085  |ddm|= 0.0054
+  alpha nocc = 34  HOMO = -1.7462002290635  LUMO = -0.715645876128376
+  beta  nocc = 30  HOMO = -1.58774429184284  LUMO = -0.697734455520971
+cycle= 15 E= -12607.4976958156  delta_E= -0.000616  |g|= 0.0066  |ddm|= 0.071
+  alpha nocc = 34  HOMO = -1.74324819594638  LUMO = -0.715858041011734
+  beta  nocc = 30  HOMO = -1.59370465717418  LUMO = -0.697761200364738
+cycle= 16 E= -12607.4984907975  delta_E= -0.000795  |g|= 0.00749  |ddm|= 0.161
+  alpha nocc = 34  HOMO = -1.74288285270033  LUMO = -0.715910160472965
+  beta  nocc = 30  HOMO = -1.59383141224223  LUMO = -0.697762933560119
+cycle= 17 E= -12607.4984953991  delta_E= -4.6e-06  |g|= 0.00836  |ddm|= 0.00322
+  alpha nocc = 34  HOMO = -1.74483958854586  LUMO = -0.71552796513227
+  beta  nocc = 30  HOMO = -1.59466542072347  LUMO = -0.697735286922489
+cycle= 18 E= -12607.4985508285  delta_E= -5.54e-05  |g|= 0.00242  |ddm|= 0.0581
+  alpha nocc = 34  HOMO = -1.74607569151187  LUMO = -0.715407725726761
+  beta  nocc = 30  HOMO = -1.59526809227845  LUMO = -0.697731366698624
+cycle= 19 E= -12607.4985520288  delta_E= -1.2e-06  |g|= 0.000582  |ddm|= 0.00985
+  alpha nocc = 34  HOMO = -1.74597313191043  LUMO = -0.715419077280688
+  beta  nocc = 30  HOMO = -1.5952926502218  LUMO = -0.69773143656897
+cycle= 20 E= -12607.4985523509  delta_E= -3.22e-07  |g|= 0.00045  |ddm|= 0.00121
+  alpha nocc = 34  HOMO = -1.74609049956301  LUMO = -0.715404569471055
+  beta  nocc = 30  HOMO = -1.59524722754586  LUMO = -0.697731300207063
+cycle= 21 E= -12607.4985511171  delta_E= 1.23e-06  |g|= 0.000565  |ddm|= 0.00242
+  alpha nocc = 34  HOMO = -1.74588343767456  LUMO = -0.71543045138116
+  beta  nocc = 30  HOMO = -1.59539718999698  LUMO = -0.6977316552111
+cycle= 22 E= -12607.4985505295  delta_E= 5.88e-07  |g|= 0.00017  |ddm|= 0.00496
+  alpha nocc = 34  HOMO = -1.74599842149232  LUMO = -0.715416570338196
+  beta  nocc = 30  HOMO = -1.59530290963244  LUMO = -0.697731240407533
+cycle= 23 E= -12607.4985504733  delta_E= 5.62e-08  |g|= 0.000309  |ddm|= 0.00112
+  alpha nocc = 34  HOMO = -1.74588992607693  LUMO = -0.715428602638126
+  beta  nocc = 30  HOMO = -1.59535082777491  LUMO = -0.697731501735267
+cycle= 24 E= -12607.4985505507  delta_E= -7.73e-08  |g|= 0.000168  |ddm|= 0.00111
+  alpha nocc = 34  HOMO = -1.74588789228913  LUMO = -0.715428925083111
+  beta  nocc = 30  HOMO = -1.59534151913704  LUMO = -0.697731546941294
+cycle= 25 E= -12607.4985505505  delta_E= 2.22e-10  |g|= 0.000167  |ddm|= 0.000279
+  alpha nocc = 34  HOMO = -1.7458878617426  LUMO = -0.715428588317169
+  beta  nocc = 30  HOMO = -1.59532193862916  LUMO = -0.69773155132736
+cycle= 26 E= -12607.4985505531  delta_E= -2.68e-09  |g|= 0.000165  |ddm|= 0.000611
+  alpha nocc = 34  HOMO = -1.74588724948092  LUMO = -0.715428555364273
+  beta  nocc = 30  HOMO = -1.5953240723833  LUMO = -0.697731560115493
+cycle= 27 E= -12607.4985505816  delta_E= -2.85e-08  |g|= 0.000167  |ddm|= 0.00016
+  alpha nocc = 34  HOMO = -1.74588974173106  LUMO = -0.715428994561792
+  beta  nocc = 30  HOMO = -1.5953131883817  LUMO = -0.697731588525084
+cycle= 28 E= -12607.4985504572  delta_E= 1.24e-07  |g|= 0.000165  |ddm|= 0.000667
+  alpha nocc = 34  HOMO = -1.74589072927243  LUMO = -0.715428870933821
+  beta  nocc = 30  HOMO = -1.59533210805597  LUMO = -0.697731571522593
+cycle= 29 E= -12607.4985504979  delta_E= -4.07e-08  |g|= 0.000155  |ddm|= 0.000434
+  alpha nocc = 34  HOMO = -1.74588406187016  LUMO = -0.71542827309703
+  beta  nocc = 30  HOMO = -1.59535455271724  LUMO = -0.697731171724288
+cycle= 30 E= -12607.4985504959  delta_E= 2.02e-09  |g|= 0.000107  |ddm|= 0.00174
+  alpha nocc = 34  HOMO = -1.7458917763677  LUMO = -0.715429328759456
+  beta  nocc = 30  HOMO = -1.59536336206292  LUMO = -0.697731594093851
+cycle= 31 E= -12607.4985505067  delta_E= -1.09e-08  |g|= 0.000103  |ddm|= 0.000522
+  alpha nocc = 34  HOMO = -1.74589064261174  LUMO = -0.715429122427706
+  beta  nocc = 30  HOMO = -1.5953624956466  LUMO = -0.697731548434304
+cycle= 32 E= -12607.4985505099  delta_E= -3.16e-09  |g|= 0.000104  |ddm|= 4.11e-05
+  alpha nocc = 34  HOMO = -1.74588828030725  LUMO = -0.715428922440724
+  beta  nocc = 30  HOMO = -1.59536230244464  LUMO = -0.697731359228957
+cycle= 33 E= -12607.4985504871  delta_E= 2.28e-08  |g|= 9e-05  |ddm|= 0.000393
+  alpha nocc = 34  HOMO = -1.74588947683383  LUMO = -0.715428929440272
+  beta  nocc = 30  HOMO = -1.59536919326243  LUMO = -0.697731474078055
+cycle= 34 E= -12607.4985504684  delta_E= 1.87e-08  |g|= 7.58e-05  |ddm|= 0.000761
+  alpha nocc = 34  HOMO = -1.74588917188357  LUMO = -0.715428934260731
+  beta  nocc = 30  HOMO = -1.59536931369901  LUMO = -0.697731481887766
+cycle= 35 E= -12607.4985504707  delta_E= -2.34e-09  |g|= 7.72e-05  |ddm|= 0.000102
+  alpha nocc = 34  HOMO = -1.74589125048582  LUMO = -0.715429187477832
+  beta  nocc = 30  HOMO = -1.59536113730449  LUMO = -0.6977316225015
+cycle= 36 E= -12607.4985504467  delta_E= 2.41e-08  |g|= 6.91e-05  |ddm|= 0.000767
+  alpha nocc = 34  HOMO = -1.74589047145829  LUMO = -0.715429109438734
+  beta  nocc = 30  HOMO = -1.59535549089971  LUMO = -0.697731614551563
+cycle= 37 E= -12607.4985504397  delta_E= 6.99e-09  |g|= 7.03e-05  |ddm|= 0.000212
+  alpha nocc = 34  HOMO = -1.74588954118045  LUMO = -0.715428783227436
+  beta  nocc = 30  HOMO = -1.59536928249533  LUMO = -0.697731626138127
+cycle= 38 E= -12607.4985504305  delta_E= 9.14e-09  |g|= 5.43e-05  |ddm|= 0.000666
+  alpha nocc = 34  HOMO = -1.74589084475847  LUMO = -0.71542919402529
+  beta  nocc = 30  HOMO = -1.59537497811648  LUMO = -0.697731677018282
+cycle= 39 E= -12607.4985504126  delta_E= 1.79e-08  |g|= 4.21e-05  |ddm|= 0.00061
+  alpha nocc = 34  HOMO = -1.74588727354901  LUMO = -0.715428801303129
+  beta  nocc = 30  HOMO = -1.59537212455934  LUMO = -0.697731408909321
+cycle= 40 E= -12607.4985504109  delta_E= 1.68e-09  |g|= 3.56e-05  |ddm|= 0.000253
+  alpha nocc = 34  HOMO = -1.74588943236893  LUMO = -0.715429022602237
+  beta  nocc = 30  HOMO = -1.59537522758063  LUMO = -0.697731511659554
+cycle= 41 E= -12607.4985504117  delta_E= -7.73e-10  |g|= 3.19e-05  |ddm|= 0.000308
+  alpha nocc = 34  HOMO = -1.74588917800172  LUMO = -0.715428986061334
+  beta  nocc = 30  HOMO = -1.5953751129605  LUMO = -0.697731515877687
+cycle= 42 E= -12607.4985504125  delta_E= -7.84e-10  |g|= 3.25e-05  |ddm|= 4.43e-05
+  alpha nocc = 34  HOMO = -1.74588970210589  LUMO = -0.715429099199984
+  beta  nocc = 30  HOMO = -1.59537406697292  LUMO = -0.697731501357694
+cycle= 43 E= -12607.4985504087  delta_E= 3.78e-09  |g|= 2.86e-05  |ddm|= 0.000152
+  alpha nocc = 34  HOMO = -1.74588928777188  LUMO = -0.715428979183918
+  beta  nocc = 30  HOMO = -1.59537189001375  LUMO = -0.69773152194873
+cycle= 44 E= -12607.4985504068  delta_E= 1.93e-09  |g|= 2.74e-05  |ddm|= 0.000167
+  alpha nocc = 34  HOMO = -1.74588910903676  LUMO = -0.715428952932459
+  beta  nocc = 30  HOMO = -1.59537225824631  LUMO = -0.697731502371096
+cycle= 45 E= -12607.4985504067  delta_E= 1.11e-10  |g|= 2.73e-05  |ddm|= 6.14e-05
+  alpha nocc = 34  HOMO = -1.74588895697927  LUMO = -0.715428955508015
+  beta  nocc = 30  HOMO = -1.59537233538444  LUMO = -0.69773152104586
+Extra cycle  E= -12607.498550408  delta_E= -1.34e-09  |g|= 2.87e-05  |ddm|= 3.3e-05
+converged SCF energy = -12607.498550408  <S^2> = 6.0041648  2S+1 = 5.0016656
+-------------------------------------------------------------------------------
+IAO core+valence:
+AO index   label
+      0   0 Ho 1s    
+      1   0 Ho 2s    
+      2   0 Ho 3s    
+      3   0 Ho 4s    
+      4   0 Ho 5s    
+      5   0 Ho 6s    
+     18   0 Ho 2px   
+     19   0 Ho 2py   
+     20   0 Ho 2pz   
+     21   0 Ho 3px   
+     22   0 Ho 3py   
+     23   0 Ho 3pz   
+     24   0 Ho 4px   
+     25   0 Ho 4py   
+     26   0 Ho 4pz   
+     27   0 Ho 5px   
+     28   0 Ho 5py   
+     29   0 Ho 5pz   
+     54   0 Ho 3dxy  
+     55   0 Ho 3dyz  
+     56   0 Ho 3dz^2 
+     57   0 Ho 3dxz  
+     58   0 Ho 3dx2-y2
+     59   0 Ho 4dxy  
+     60   0 Ho 4dyz  
+     61   0 Ho 4dz^2 
+     62   0 Ho 4dxz  
+     63   0 Ho 4dx2-y2
+     99   0 Ho 4f-3  
+    100   0 Ho 4f-2  
+    101   0 Ho 4f-1  
+    102   0 Ho 4f+0  
+    103   0 Ho 4f+1  
+    104   0 Ho 4f+2  
+    105   0 Ho 4f+3  
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+IAO virtuals:
+AO index   label
+      6   0 Ho 7s    
+      7   0 Ho 8s    
+      8   0 Ho 9s    
+      9   0 Ho 10s    
+     10   0 Ho 11s    
+     11   0 Ho 12s    
+     12   0 Ho 13s    
+     13   0 Ho 14s    
+     14   0 Ho 15s    
+     15   0 Ho 16s    
+     16   0 Ho 17s    
+     17   0 Ho 18s    
+     30   0 Ho 6px   
+     31   0 Ho 6py   
+     32   0 Ho 6pz   
+     33   0 Ho 7px   
+     34   0 Ho 7py   
+     35   0 Ho 7pz   
+     36   0 Ho 8px   
+     37   0 Ho 8py   
+     38   0 Ho 8pz   
+     39   0 Ho 9px   
+     40   0 Ho 9py   
+     41   0 Ho 9pz   
+     42   0 Ho 10px   
+     43   0 Ho 10py   
+     44   0 Ho 10pz   
+     45   0 Ho 11px   
+     46   0 Ho 11py   
+     47   0 Ho 11pz   
+     48   0 Ho 12px   
+     49   0 Ho 12py   
+     50   0 Ho 12pz   
+     51   0 Ho 13px   
+     52   0 Ho 13py   
+     53   0 Ho 13pz   
+     64   0 Ho 5dxy  
+     65   0 Ho 5dyz  
+     66   0 Ho 5dz^2 
+     67   0 Ho 5dxz  
+     68   0 Ho 5dx2-y2
+     69   0 Ho 6dxy  
+     70   0 Ho 6dyz  
+     71   0 Ho 6dz^2 
+     72   0 Ho 6dxz  
+     73   0 Ho 6dx2-y2
+     74   0 Ho 7dxy  
+     75   0 Ho 7dyz  
+     76   0 Ho 7dz^2 
+     77   0 Ho 7dxz  
+     78   0 Ho 7dx2-y2
+     79   0 Ho 8dxy  
+     80   0 Ho 8dyz  
+     81   0 Ho 8dz^2 
+     82   0 Ho 8dxz  
+     83   0 Ho 8dx2-y2
+     84   0 Ho 9dxy  
+     85   0 Ho 9dyz  
+     86   0 Ho 9dz^2 
+     87   0 Ho 9dxz  
+     88   0 Ho 9dx2-y2
+     89   0 Ho 10dxy  
+     90   0 Ho 10dyz  
+     91   0 Ho 10dz^2 
+     92   0 Ho 10dxz  
+     93   0 Ho 10dx2-y2
+     94   0 Ho 11dxy  
+     95   0 Ho 11dyz  
+     96   0 Ho 11dz^2 
+     97   0 Ho 11dxz  
+     98   0 Ho 11dx2-y2
+    106   0 Ho 5f-3  
+    107   0 Ho 5f-2  
+    108   0 Ho 5f-1  
+    109   0 Ho 5f+0  
+    110   0 Ho 5f+1  
+    111   0 Ho 5f+2  
+    112   0 Ho 5f+3  
+    113   0 Ho 6f-3  
+    114   0 Ho 6f-2  
+    115   0 Ho 6f-1  
+    116   0 Ho 6f+0  
+    117   0 Ho 6f+1  
+    118   0 Ho 6f+2  
+    119   0 Ho 6f+3  
+-------------------------------------------------------------------------------
+LO error from I 0.02291518779952947
+ao_index [ 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239]
+ao_labels ['0 Ho 4f-3  ' '0 Ho 4f-2  ' '0 Ho 4f-1  ' '0 Ho 4f+0  ' '0 Ho 4f+1  ' '0 Ho 4f+2  ' '0 Ho 4f+3  ' '0 Ho 5f-3  ' '0 Ho 5f-2  ' '0 Ho 5f-1  ' '0 Ho 5f+0  ' '0 Ho 5f+1  ' '0 Ho 5f+2  '
+ '0 Ho 5f+3  ' '0 Ho 6f-3  ' '0 Ho 6f-2  ' '0 Ho 6f-1  ' '0 Ho 6f+0  ' '0 Ho 6f+1  ' '0 Ho 6f+2  ' '0 Ho 6f+3  ']
+Initial guess from minao.
+Updated f-block dm with J~(0,0,J)
+(3, 120, 120) 120
+Rotated f-block dm by angles from +z [-0.              1.043766508337  2.101115511712]
+(3, 120, 120) 120
+init J vector [-1.942600725164-0.j  5.378101058153+0.j  5.013175196855+0.j]
+
+
+******** <class 'pyscf.x2c.x2c.X2C1eGKS'> ********
+method = X2C1eGKS
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+diis_damp = 0
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 100
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = constrained_chkfile.chk
+max_memory 4000 MB (current use 330 MB)
+XC library pyscf.dft.libxc version 6.1.0
+    S. Lehtola, C. Steigemann, M. J.T. Oliveira, and M. A.L. Marques.,  SoftwareX 7, 1–5 (2018)
+XC functionals = HF
+
+radial grids: 
+    Treutler-Ahlrichs [JCP 102, 346 (1995); DOI:10.1063/1.469408] (M4) radial grids
+    
+becke partition: Becke, JCP 88, 2547 (1988); DOI:10.1063/1.454033
+pruning grids: <function nwchem_prune at 0x7f7a54511c60>
+grids dens level: 3
+symmetrized grids: False
+atomic radii adjust function: <function treutler_atomic_radii_adjust at 0x7f7a545122a0>
+small_rho_cutoff = 1e-07
+collinear = col
+
+
+******** <class 'pyscf.x2c.x2c.SpinOrbitalX2CHelper'> ********
+approx = 1e
+xuncontract = 1
+Set gradient conv threshold to 3.16228e-05
+tot grids = 21152
+J vector [-3.148117017464  5.378033601265  5.013114236279]
+energy penalty 0.0009031364784177587
+init E= -12604.6682418925
+  HOMO = -0.980110123296978  LUMO = -0.393126987557981
+J vector [-3.036280559076  5.418104070884  5.037433964946]
+energy penalty 0.0009618405383388496
+cycle= 1 E= -12610.6977385041  delta_E= -6.03  |g|= 1.94  |ddm|= 0.843
+  HOMO = -2.02097211107257  LUMO = -0.852451816507552
+J vector [-3.037448253609  5.423839921616  5.03061741595 ]
+energy penalty 0.0009486617464725012
+cycle= 2 E= -12610.8250278587  delta_E= -0.127  |g|= 0.912  |ddm|= 0.907
+  HOMO = -1.61232900605263  LUMO = -0.70724901063546
+J vector [-3.039858951621  5.427739383689  5.025084914583]
+energy penalty 0.0009377088541019152
+cycle= 3 E= -12610.8857559898  delta_E= -0.0607  |g|= 0.239  |ddm|= 0.398
+  HOMO = -1.64909960823178  LUMO = -0.707460274478305
+J vector [-3.042677511963  5.432254842438  5.018661539041]
+energy penalty 0.0009250699839772736
+cycle= 4 E= -12610.8900481686  delta_E= -0.00429  |g|= 0.0366  |ddm|= 0.0606
+  HOMO = -1.65666622474776  LUMO = -0.708480731914295
+J vector [-3.045941173679  5.436946063046  5.011789078524]
+energy penalty 0.0009115961125245953
+cycle= 5 E= -12610.8913254613  delta_E= -0.00128  |g|= 0.029  |ddm|= 0.0294
+  HOMO = -1.65594828747331  LUMO = -0.708155404672747
+J vector [-3.055792783724  5.450529014744  4.99155612466 ]
+energy penalty 0.0008725202770158181
+cycle= 6 E= -12610.8941537188  delta_E= -0.00283  |g|= 0.022  |ddm|= 0.0767
+  HOMO = -1.65579710557029  LUMO = -0.707802094434615
+J vector [-3.085610938767  5.489855349806  4.931223276582]
+energy penalty 0.0007615961651743941
+cycle= 7 E= -12610.8978665412  delta_E= -0.00371  |g|= 0.00689  |ddm|= 0.204
+  HOMO = -1.65712926654003  LUMO = -0.707598487204703
+J vector [-3.091665410724  5.497601377767  4.919022153627]
+energy penalty 0.0007401954628321938
+cycle= 8 E= -12610.8979585529  delta_E= -9.2e-05  |g|= 0.00388  |ddm|= 0.0193
+  HOMO = -1.65796851154615  LUMO = -0.707681980834842
+J vector [-3.098031922378  5.50581565181   4.90603648685 ]
+energy penalty 0.0007178114424018567
+cycle= 9 E= -12610.898002205  delta_E= -4.37e-05  |g|= 0.00319  |ddm|= 0.0151
+  HOMO = -1.65798903103393  LUMO = -0.707650653691079
+J vector [-3.104031637161  5.51358802529   4.893680232661]
+energy penalty 0.0006968866734553814
+cycle= 10 E= -12610.898029575  delta_E= -2.74e-05  |g|= 0.00306  |ddm|= 0.00613
+  HOMO = -1.65853819724794  LUMO = -0.707660804732923
+J vector [-3.134973609758  5.553411915773  4.829251225515]
+energy penalty 0.0005933394080527243
+cycle= 11 E= -12610.8981536982  delta_E= -0.000124  |g|= 0.00268  |ddm|= 0.0308
+  HOMO = -1.65824903155529  LUMO = -0.707648023089433
+J vector [-3.150946202318  5.573679951961  4.79566269654 ]
+energy penalty 0.0005429851867252022
+cycle= 12 E= -12610.8982094978  delta_E= -5.58e-05  |g|= 0.00257  |ddm|= 0.0155
+  HOMO = -1.65855690644991  LUMO = -0.707641225442239
+J vector [-3.201420464458  5.636535859744  4.688036052203]
+energy penalty 0.0003978573435004762
+cycle= 13 E= -12610.8983665786  delta_E= -0.000157  |g|= 0.00214  |ddm|= 0.048
+  HOMO = -1.66227056197113  LUMO = -0.707677140216297
+J vector [-3.285743469296  5.739304309012  4.501026814515]
+energy penalty 0.00020212171849585126
+cycle= 14 E= -12610.8985585762  delta_E= -0.000192  |g|= 0.00189  |ddm|= 0.0819
+  HOMO = -1.66025829196525  LUMO = -0.707662776998758
+J vector [-3.290522571738  5.744836926394  4.490429408293]
+energy penalty 0.00019307973636249366
+cycle= 15 E= -12610.8985674217  delta_E= -8.85e-06  |g|= 0.00166  |ddm|= 0.00456
+  HOMO = -1.65605690090104  LUMO = -0.707655471111441
+J vector [-3.317923199251  5.77626057013   4.429312339019]
+energy penalty 0.00014512617250643346
+cycle= 16 E= -12610.8986128163  delta_E= -4.54e-05  |g|= 0.0015  |ddm|= 0.0257
+  HOMO = -1.65796695566726  LUMO = -0.707647637014289
+J vector [-3.331599972273  5.791690540773  4.398669703057]
+energy penalty 0.00012374146745758986
+cycle= 17 E= -12610.8986328081  delta_E= -2e-05  |g|= 0.00136  |ddm|= 0.0128
+  HOMO = -1.65824830369082  LUMO = -0.707640349557895
+J vector [-3.360713106693  5.823186924409  4.334347402989]
+energy penalty 8.448723117436607e-05
+cycle= 18 E= -12610.898671115  delta_E= -3.83e-05  |g|= 0.00121  |ddm|= 0.0266
+  HOMO = -1.65843711520839  LUMO = -0.707644344092682
+J vector [-3.37563142585   5.838477066411  4.302113167809]
+energy penalty 6.765342771186233e-05
+cycle= 19 E= -12610.8986895789  delta_E= -1.85e-05  |g|= 0.00111  |ddm|= 0.0134
+  HOMO = -1.65851649456229  LUMO = -0.707652492673054
+J vector [-3.415351569157  5.877438907432  4.217111615584]
+energy penalty 3.233437483260992e-05
+cycle= 20 E= -12610.8987312165  delta_E= -4.16e-05  |g|= 0.000801  |ddm|= 0.036
+  HOMO = -1.6588921420692  LUMO = -0.707650832321671
+J vector [-3.436656348728  5.898108396467  4.170733897124]
+energy penalty 1.8580257561238157e-05
+cycle= 21 E= -12610.898746591  delta_E= -1.54e-05  |g|= 0.000676  |ddm|= 0.0196
+  HOMO = -1.65723811055686  LUMO = -0.707646074180626
+J vector [-3.450048451348  5.910321152826  4.142373314759]
+energy penalty 1.2044198969567432e-05
+cycle= 22 E= -12610.8987545267  delta_E= -7.94e-06  |g|= 0.000553  |ddm|= 0.0129
+  HOMO = -1.65908692975031  LUMO = -0.707646923741785
+J vector [-3.462345230703  5.922663728112  4.114358599214]
+energy penalty 7.003628041468701e-06
+cycle= 23 E= -12610.8987598682  delta_E= -5.34e-06  |g|= 0.000399  |ddm|= 0.0115
+  HOMO = -1.65820928667112  LUMO = -0.707646235340439
+J vector [-3.466460910457  5.926484432202  4.10542000745 ]
+energy penalty 5.679798303503958e-06
+cycle= 24 E= -12610.8987613243  delta_E= -1.46e-06  |g|= 0.000348  |ddm|= 0.00419
+  HOMO = -1.65887785700361  LUMO = -0.70764995940888
+J vector [-3.47373132167   5.934215205071  4.088046163155]
+energy penalty 3.5147137284763377e-06
+cycle= 25 E= -12610.8987635477  delta_E= -2.22e-06  |g|= 0.000291  |ddm|= 0.007
+  HOMO = -1.65867554317226  LUMO = -0.70764630692434
+J vector [-3.483046227726  5.94423550896   4.065484459616]
+energy penalty 1.4791197767660692e-06
+cycle= 26 E= -12610.8987656483  delta_E= -2.1e-06  |g|= 0.000215  |ddm|= 0.00906
+  HOMO = -1.65844814916504  LUMO = -0.707646697081754
+J vector [-3.488928705578  5.950763700075  4.050857447063]
+energy penalty 6.254890930801338e-07
+cycle= 27 E= -12610.8987665461  delta_E= -8.98e-07  |g|= 0.000179  |ddm|= 0.0059
+  HOMO = -1.65855346107262  LUMO = -0.70764639831625
+J vector [-3.491091054572  5.953181133525  4.045441824322]
+energy penalty 4.0187751594089604e-07
+cycle= 28 E= -12610.8987667908  delta_E= -2.45e-07  |g|= 0.000171  |ddm|= 0.00217
+  HOMO = -1.65839549537831  LUMO = -0.70764557301423
+J vector [-3.492808490397  5.955501516284  4.040605093061]
+energy penalty 2.4361211289125604e-07
+cycle= 29 E= -12610.8987671804  delta_E= -3.9e-07  |g|= 0.000151  |ddm|= 0.00223
+  HOMO = -1.65865194432016  LUMO = -0.707648467292635
+J vector [-3.496172360252  5.959903508467  4.031281215624]
+energy penalty 5.076743348375601e-08
+cycle= 30 E= -12610.8987676483  delta_E= -4.68e-07  |g|= 0.000126  |ddm|= 0.00412
+  HOMO = -1.65847932940998  LUMO = -0.707648640663467
+J vector [-3.497402462044  5.961435901297  4.027989166261]
+energy penalty 1.7891253918378426e-08
+cycle= 31 E= -12610.8987677952  delta_E= -1.47e-07  |g|= 0.000117  |ddm|= 0.00148
+  HOMO = -1.6585120242056  LUMO = -0.707648418474232
+J vector [-3.499348689723  5.963702366717  4.022986463305]
+energy penalty 3.3643036356778565e-09
+cycle= 32 E= -12610.8987679355  delta_E= -1.4e-07  |g|= 0.000108  |ddm|= 0.00214
+  HOMO = -1.6585375273927  LUMO = -0.707648378672176
+J vector [-3.501350102484  5.966060309192  4.017796539849]
+energy penalty 3.306875814068633e-08
+cycle= 33 E= -12610.8987680439  delta_E= -1.08e-07  |g|= 0.000102  |ddm|= 0.00226
+  HOMO = -1.65850243409421  LUMO = -0.707647847900682
+J vector [-3.50194639478   5.967022158233  4.015911043172]
+energy penalty 5.4705744547689503e-08
+cycle= 34 E= -12610.898768194  delta_E= -1.5e-07  |g|= 9.13e-05  |ddm|= 0.00149
+  HOMO = -1.65852602207616  LUMO = -0.707648381901668
+J vector [-3.501206161763  5.967028864944  4.016669378716]
+energy penalty 4.379085933869931e-08
+cycle= 35 E= -12610.8987685322  delta_E= -3.38e-07  |g|= 7.03e-05  |ddm|= 0.00317
+  HOMO = -1.65852627557063  LUMO = -0.7076481321758
+J vector [-3.500451963701  5.966546854884  4.018082929802]
+energy penalty 2.803656135696997e-08
+cycle= 36 E= -12610.8987686527  delta_E= -1.21e-07  |g|= 6.3e-05  |ddm|= 0.0015
+  HOMO = -1.65851215093616  LUMO = -0.707647957397114
+J vector [-3.499498539684  5.96587860054   4.019938601991]
+energy penalty 1.2707942573797481e-08
+cycle= 37 E= -12610.8987687586  delta_E= -1.06e-07  |g|= 5.08e-05  |ddm|= 0.00163
+  HOMO = -1.65852949660487  LUMO = -0.707648099698715
+J vector [-3.497942717683  5.964828079299  4.022887284786]
+energy penalty 6.604817137656483e-10
+cycle= 38 E= -12610.8987688721  delta_E= -1.14e-07  |g|= 2.84e-05  |ddm|= 0.00286
+  HOMO = -1.6585235067312  LUMO = -0.70764778204004
+J vector [-3.497627142513  5.964698236589  4.023359907397]
+energy penalty 1.2523768688765813e-10
+cycle= 39 E= -12610.8987688889  delta_E= -1.68e-08  |g|= 2.18e-05  |ddm|= 0.000931
+  HOMO = -1.65852367769364  LUMO = -0.707648106619023
+J vector [-3.497771127366  5.964913414774  4.02291685427 ]
+energy penalty 5.451601214900847e-10
+cycle= 40 E= -12610.8987688926  delta_E= -3.74e-09  |g|= 1.78e-05  |ddm|= 0.000351
+  HOMO = -1.65852369689701  LUMO = -0.707648013034767
+J vector [-3.497965149436  5.965171326426  4.02236651095 ]
+energy penalty 1.5305465961290565e-09
+cycle= 41 E= -12610.8987688951  delta_E= -2.47e-09  |g|= 1.4e-05  |ddm|= 0.000384
+  HOMO = -1.65852416218736  LUMO = -0.707648008538819
+J vector [-3.49802724076   5.965266832435  4.022171185412]
+energy penalty 1.9998854483560534e-09
+cycle= 42 E= -12610.898768896  delta_E= -9.51e-10  |g|= 1.26e-05  |ddm|= 0.000205
+  HOMO = -1.65852360804839  LUMO = -0.707648008160989
+J vector [-3.498022863718  5.965260726939  4.022184076026]
+energy penalty 1.966856899571212e-09
+Extra cycle  E= -12610.8987688962  delta_E= -1.91e-10  |g|= 1.21e-05  |ddm|= 1.28e-05
+converged SCF energy = -12610.8987688962  <S^2> = 5.6189687  2S+1 = 4.8451909
+(3, 120, 120) 120
+J vector [-3.498022863718  5.965260726939  4.022184076026]
+energy penalty 0.0
+**J_vector, dft energy** [-3.498064538552-0.j  5.965331941351-0.j  4.022232111574+0.j]  -12610.898768898209

@@ -1,0 +1,3471 @@
+Currently Loaded Modulefiles:
+ 1) gmp/6.2.1-gcc-13.2.0-lcnhyse <aL>             
+ 2) mpfr/4.2.0-gcc-13.2.0-yy2fkq5 <aL>            
+ 3) mpc/1.3.1-gcc-13.2.0-5kgoftq <aL>             
+ 4) zlib-ng/2.1.3-gcc-13.2.0-jetnfwa <aL>         
+ 5) zstd/1.5.5-gcc-13.2.0-t2lua3l <aL>            
+ 6) gcc/13.2.0-gcc-13.2.0-w55nxkl                 
+ 7) cmake/3.20.2-gcc-13.2.0-rp74vpv               
+ 8) libfabric/1.18.1-gcc-13.2.0-bijxar4 <aL>      
+ 9) numactl/2.0.14-gcc-13.2.0-etkf74e <aL>        
+10) openssh/8.7p1-gcc-13.2.0-g55xmkx <aL>         
+11) slurm/22.05.6-gcc-13.2.0-tchsn6y <aL>         
+12) openmpi/4.1.5-gcc-13.2.0-24q3ap2              
+13) libpciaccess/0.17-gcc-13.2.0-r2cijnn <aL>     
+14) libiconv/1.17-gcc-13.2.0-ntov4te <aL>         
+15) xz/5.4.1-gcc-13.2.0-4xkm5xo <aL>              
+16) libxml2/2.10.3-gcc-13.2.0-fr6jcjz <aL>        
+17) ncurses/6.4-gcc-13.2.0-4o2yj6n <aL>           
+18) hwloc/2.9.1-gcc-13.2.0-gzvfolk <aL>           
+19) intel-tbb/2021.9.0-gcc-13.2.0-6nwk3ml <aL>    
+20) intel-oneapi-mkl/2023.2.0-gcc-13.2.0-ohvyk7g  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+/central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF
+Thu Apr 17 13:18:52 PDT 2025
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+hpc-92-18.cm.cluster
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   hpc-92-18
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+Apr 17 13:18:54 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+numpy 1.26.0  scipy 1.11.3
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+PySCF version 2.5.0
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                   [INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+ else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+      [INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+nuclear repulsion = 1868.38919656687
+  data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+number of shells = 84
+number of NR pGTOs = 449
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.94
+N_elec (88, 83), N_ao 198
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+N_elec (88, 83), N_ao 198
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+ecp = {}
+CPU time:         0.95
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+N_elec (88, 83), N_ao 198
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+CPU time:         0.94
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+nuclear repulsion = 1868.38919656687
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+N_elec (88, 83), N_ao 198
+number of shells = 84
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+N_elec (88, 83), N_ao 198
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+numpy 1.26.0  scipy 1.11.3
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+      nuclear repulsion = 1868.38919656687
+  data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+number of shells = 84
+#INFO: ******************** input file end ********************
+
+
+number of NR pGTOs = 449
+nuclear repulsion = 1868.38919656687
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+number of shells = 84
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+CPU time:         0.94
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+number of NR pGTOs = 449
+N_elec (88, 83), N_ao 198
+number of NR cGTOs = 198
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.94
+Date: Thu Apr 17 13:18:55 2025
+[CONFIG] conf_file None
+N_elec (88, 83), N_ao 198
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:PySCF version 2.5.0
+
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+[INPUT] num. atoms = 7
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+PySCF version 2.5.0
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+      [CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+  data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    [CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+N_elec (88, 83), N_ao 198
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:nuclear repulsion = 1868.38919656687
+number of shells = 84
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.94
+N_elec (88, 83), N_ao 198
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.94
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+N_elec (88, 83), N_ao 198
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+N_elec (88, 83), N_ao 198
+N_elec (88, 83), N_ao 198
+N_elec (88, 83), N_ao 198
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+ecp = {}
+CPU time:         0.95
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.94
+N_elec (88, 83), N_ao 198
+N_elec (88, 83), N_ao 198
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/cHF/run_55/get_JM.py ****
+'''
+Expand a Slater Determinant in eigenfunctions of J amd Jz
+'''
+import pyscf
+from functools import reduce
+from pyscf import scf, lib, lo, symm, gto
+import os, sys
+import numpy as np
+import scipy.linalg as la
+import scipy
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+mpirank = comm.Get_rank()
+mpisize = comm.Get_size()
+log = lib.logger.Logger(sys.stdout, 4)
+np.set_printoptions(precision=4, threshold=sys.maxsize, linewidth=380, suppress=True)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import project
+    from stevens.momentum import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 6000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+
+    # other parameter
+    chkfname = 'constrained_chkfile.chk'  # load PySCF cHF/DFT solution 
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    atom_index = 0 # the index of central lanthanide atom
+    ao_shell = 'f'
+    N_grid = (19,10,19) 
+    max_J = 7.5
+    max_J_only = True
+    project_type = 'full' # "spin" (S), "orb" (L), or "full" (J)
+    diag_only = False
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # load cHF solution
+    gmf = scf.GHF(mol).x2c()
+    if chkfname is not None and os.path.isfile(chkfname):
+        data = chkfile.load(chkfname, 'scf')
+        gmf.__dict__.update(data)
+    else: 
+        gmf.chkfile = geometry + '.chk'
+        gmf.kernel()
+    if mpirank == 0:
+        gmf.analyze(with_meta_lowdin=True)
+        dm = gmf.make_rdm1()
+        print("S vector", get_mj(mol, dm, include_L=False))
+        print("L vector", get_mj(mol, dm, include_S=False))
+        print("J vector", get_mj(mol, dm))
+    
+    # calculate JM projection
+    comm.Barrier()
+    proj = project.Project(mol, gmf, atom_index=atom_index, ao_shell=ao_shell, spin_separate=False, \
+            N_grid=N_grid, lo_chkfname=lo_chkfname)
+
+    c2_sum = 0
+    if mpirank == 0:
+        print("  %s     M     c^2  "%({"spin": "S", "orb": "L", "full": "J"}[project_type]))
+    if project_type in ["spin", "full"] and abs(mol.spin%2) > 1e-4: 
+        # Scan half-integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J))+0.5, 0, -1)
+    else:
+        # Scan integer J. The rest is always 0.
+        J_range = np.arange(int(np.floor(max_J)), -0.5, -1)
+    if max_J_only:
+        J_range = J_range[:1]
+    c2_Jmk = [] 
+    for J in J_range:
+        for m in np.arange(J,-J-1,-1):
+            for k in np.arange(J,-J-1,-1):
+                if (diag_only and np.abs(k-m) > 1e-10) or k-m > 1e-10: 
+                    res = 0
+                else:
+                    # S: proj='spin'
+                    # L: proj='orb'
+                    # J: proj='full'
+                    res = proj.get_proj_ovlp(J=J, m=m, k=k, proj=project_type, N_alpha=N_grid[0], N_beta=N_grid[1], \
+                            N_gamma=N_grid[2], verbose=0)
+                if J == max(J_range):
+                    c2_Jmk.append(res) 
+                if mpirank == 0 and la.norm(res) > 1e-5:
+                    if abs(res.imag) > 1e-6:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f   %8.5f"%(J,m,k, res.real, res.imag))
+                    else:
+                        print(" %3.1f   %4.1f   %4.1f   %8.5f"%(J,m,k, res.real))
+                    if np.abs(m-k) < 1e-6:
+                        c2_sum += res.real
+    if mpirank == 0:
+        c2_Jmk = np.array(c2_Jmk, dtype=complex).reshape((int(2*max(J_range)+1), int(2*max(J_range)+1)))
+        print('triangle', c2_Jmk)
+        c2_Jmk[np.tril_indices(len(c2_Jmk), -1)] = c2_Jmk.conj().T[np.tril_indices(len(c2_Jmk), -1)]
+        c2_Jmk[np.diag_indices(len(c2_Jmk))] = c2_Jmk[np.diag_indices(len(c2_Jmk))].real # c*c is real 
+        print('full', c2_Jmk)
+        np.save('c2_Jmk.npy', c2_Jmk)
+        print("Sum of c^2", c2_sum)
+
+
+
+    
+    
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-92-18.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 1
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Thu Apr 17 13:18:55 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         0.95
+N_elec (88, 83), N_ao 198
+**** MO energy ****
+MO #1   energy= -1986.50534665786  occ= 1
+MO #2   energy= -1986.50523310813  occ= 1
+MO #3   energy= -335.744491624996  occ= 1
+MO #4   energy= -335.744034433505  occ= 1
+MO #5   energy= -318.560756909832  occ= 1
+MO #6   energy= -318.560500017313  occ= 1
+MO #7   energy= -288.739772099726  occ= 1
+MO #8   energy= -288.739405536553  occ= 1
+MO #9   energy= -288.731643623165  occ= 1
+MO #10  energy= -288.73151994658   occ= 1
+MO #11  energy= -105.083056780796  occ= 1
+MO #12  energy= -105.083035205865  occ= 1
+MO #13  energy= -105.08292195394   occ= 1
+MO #14  energy= -105.082900359135  occ= 1
+MO #15  energy= -105.082561324326  occ= 1
+MO #16  energy= -105.082541462011  occ= 1
+MO #17  energy= -105.082428199904  occ= 1
+MO #18  energy= -105.08240831981   occ= 1
+MO #19  energy= -105.081717036027  occ= 1
+MO #20  energy= -105.08171339173   occ= 1
+MO #21  energy= -105.081589062419  occ= 1
+MO #22  energy= -105.081585419415  occ= 1
+MO #23  energy= -77.0768317208058  occ= 1
+MO #24  energy= -76.9573128929472  occ= 1
+MO #25  energy= -69.5783219564064  occ= 1
+MO #26  energy= -69.5597442370235  occ= 1
+MO #27  energy= -63.2150269754672  occ= 1
+MO #28  energy= -63.2058808040207  occ= 1
+MO #29  energy= -63.1306914008844  occ= 1
+MO #30  energy= -63.0453531583141  occ= 1
+MO #31  energy= -50.7717865797462  occ= 1
+MO #32  energy= -50.7677322206985  occ= 1
+MO #33  energy= -50.7600658976615  occ= 1
+MO #34  energy= -50.7376225900977  occ= 1
+MO #35  energy= -49.1961544944331  occ= 1
+MO #36  energy= -49.1797401104669  occ= 1
+MO #37  energy= -49.1679047394725  occ= 1
+MO #38  energy= -49.0956851245381  occ= 1
+MO #39  energy= -49.0501364936003  occ= 1
+MO #40  energy= -48.9961579221144  occ= 1
+MO #41  energy= -16.5561637299229  occ= 1
+MO #42  energy= -16.2412533289348  occ= 1
+MO #43  energy= -13.4593258576107  occ= 1
+MO #44  energy= -13.414162114661   occ= 1
+MO #45  energy= -12.0554310108376  occ= 1
+MO #46  energy= -12.0154435166608  occ= 1
+MO #47  energy= -11.8192560547015  occ= 1
+MO #48  energy= -11.6604449643524  occ= 1
+MO #49  energy= -10.4901074030716  occ= 1
+MO #50  energy= -10.4900860750591  occ= 1
+MO #51  energy= -10.4899600689319  occ= 1
+MO #52  energy= -10.489938720661   occ= 1
+MO #53  energy= -10.4896009620238  occ= 1
+MO #54  energy= -10.4895813642658  occ= 1
+MO #55  energy= -10.4894553260693  occ= 1
+MO #56  energy= -10.4894357100578  occ= 1
+MO #57  energy= -10.488727031153   occ= 1
+MO #58  energy= -10.4887252481535  occ= 1
+MO #59  energy= -10.4885875048207  occ= 1
+MO #60  energy= -10.4885857245408  occ= 1
+MO #61  energy= -7.94725726555675  occ= 1
+MO #62  energy= -7.94723589671985  occ= 1
+MO #63  energy= -7.94714711608053  occ= 1
+MO #64  energy= -7.94712572962182  occ= 1
+MO #65  energy= -7.94675743983453  occ= 1
+MO #66  energy= -7.94673780531353  occ= 1
+MO #67  energy= -7.94663655690729  occ= 1
+MO #68  energy= -7.94661690506992  occ= 1
+MO #69  energy= -7.94590142615922  occ= 1
+MO #70  energy= -7.94589963703672  occ= 1
+MO #71  energy= -7.94576295190726  occ= 1
+MO #72  energy= -7.94576116004087  occ= 1
+MO #73  energy= -7.8793795800757   occ= 1
+MO #74  energy= -7.87935811777109  occ= 1
+MO #75  energy= -7.87912026715671  occ= 1
+MO #76  energy= -7.87909877146279  occ= 1
+MO #77  energy= -7.87887336544214  occ= 1
+MO #78  energy= -7.87885363117517  occ= 1
+MO #79  energy= -7.87861234931383  occ= 1
+MO #80  energy= -7.87859258214601  occ= 1
+MO #81  energy= -7.87845978679391  occ= 1
+MO #82  energy= -7.87843787373774  occ= 1
+MO #83  energy= -7.87837182271013  occ= 1
+MO #84  energy= -7.8783498778703   occ= 1
+MO #85  energy= -7.87800118644693  occ= 1
+MO #86  energy= -7.87799838646078  occ= 1
+MO #87  energy= -7.87795117886273  occ= 1
+MO #88  energy= -7.8779309249199   occ= 1
+MO #89  energy= -7.87787782333111  occ= 1
+MO #90  energy= -7.87785760806425  occ= 1
+MO #91  energy= -7.87773905332237  occ= 1
+MO #92  energy= -7.87773658488673  occ= 1
+MO #93  energy= -7.87705757261977  occ= 1
+MO #94  energy= -7.87705236268867  occ= 1
+MO #95  energy= -7.8770507248625   occ= 1
+MO #96  energy= -7.8770455097687   occ= 1
+MO #97  energy= -7.14096516151081  occ= 1
+MO #98  energy= -7.1404313461915   occ= 1
+MO #99  energy= -7.11092008612031  occ= 1
+MO #100 energy= -7.0492434826235   occ= 1
+MO #101 energy= -6.81804290793982  occ= 1
+MO #102 energy= -6.77090699890038  occ= 1
+MO #103 energy= -6.61056154737721  occ= 1
+MO #104 energy= -6.39848683668485  occ= 1
+MO #105 energy= -6.33434273650745  occ= 1
+MO #106 energy= -6.23763047283666  occ= 1
+MO #107 energy= -2.38439543487349  occ= 1
+MO #108 energy= -2.26774851715498  occ= 1
+MO #109 energy= -1.41550502478189  occ= 1
+MO #110 energy= -1.41181187574683  occ= 1
+MO #111 energy= -1.2211159577932   occ= 1
+MO #112 energy= -1.21525296329796  occ= 1
+MO #113 energy= -1.17901577311099  occ= 1
+MO #114 energy= -1.13424167416923  occ= 1
+MO #115 energy= -0.953085445080392 occ= 1
+MO #116 energy= -0.952520961988959 occ= 1
+MO #117 energy= -0.944679019894943 occ= 1
+MO #118 energy= -0.94376729671816  occ= 1
+MO #119 energy= -0.943752844730216 occ= 1
+MO #120 energy= -0.942868401890544 occ= 1
+MO #121 energy= -0.941784031770072 occ= 1
+MO #122 energy= -0.941581399173006 occ= 1
+MO #123 energy= -0.93740948820048  occ= 1
+MO #124 energy= -0.936947941197607 occ= 1
+MO #125 energy= -0.936039540990575 occ= 1
+MO #126 energy= -0.933326586697297 occ= 1
+MO #127 energy= -0.859050400097216 occ= 1
+MO #128 energy= -0.854554165277621 occ= 1
+MO #129 energy= -0.837723075280135 occ= 1
+MO #130 energy= -0.815648693539879 occ= 1
+MO #131 energy= -0.78107867879411  occ= 1
+MO #132 energy= -0.777707958553009 occ= 1
+MO #133 energy= -0.728049082011145 occ= 1
+MO #134 energy= -0.631657723117015 occ= 1
+MO #135 energy= -0.617654619645042 occ= 1
+MO #136 energy= -0.40634654063621  occ= 1
+MO #137 energy= -0.405099763322676 occ= 1
+MO #138 energy= -0.38246077868702  occ= 1
+MO #139 energy= -0.381790940133887 occ= 1
+MO #140 energy= -0.380992500501164 occ= 1
+MO #141 energy= -0.380426555948396 occ= 1
+MO #142 energy= -0.372218750893948 occ= 1
+MO #143 energy= -0.371805489856296 occ= 1
+MO #144 energy= -0.371149329056725 occ= 1
+MO #145 energy= -0.371058778543749 occ= 1
+MO #146 energy= -0.370558075559542 occ= 1
+MO #147 energy= -0.370459492505505 occ= 1
+MO #148 energy= -0.368621002020337 occ= 1
+MO #149 energy= -0.368490241205578 occ= 1
+MO #150 energy= -0.368383771872118 occ= 1
+MO #151 energy= -0.36804870825321  occ= 1
+MO #152 energy= -0.367732094821528 occ= 1
+MO #153 energy= -0.366428736912421 occ= 1
+MO #154 energy= -0.343159024559286 occ= 1
+MO #155 energy= -0.342133873479143 occ= 1
+MO #156 energy= -0.341311709946227 occ= 1
+MO #157 energy= -0.34087575013152  occ= 1
+MO #158 energy= -0.34047770831381  occ= 1
+MO #159 energy= -0.340358042064366 occ= 1
+MO #160 energy= -0.338216748082623 occ= 1
+MO #161 energy= -0.338104677410655 occ= 1
+MO #162 energy= -0.33539532354611  occ= 1
+MO #163 energy= -0.334857249273357 occ= 1
+MO #164 energy= -0.334723768140558 occ= 1
+MO #165 energy= -0.333998831400265 occ= 1
+MO #166 energy= -0.327131195652761 occ= 1
+MO #167 energy= -0.326901907516736 occ= 1
+MO #168 energy= -0.32442109755622  occ= 1
+MO #169 energy= -0.324129498851079 occ= 1
+MO #170 energy= -0.323853259210193 occ= 1
+MO #171 energy= -0.323725546042273 occ= 1
+MO #172 energy= 0.122822669546464  occ= 0
+MO #173 energy= 0.122925345536111  occ= 0
+MO #174 energy= 0.123040920956081  occ= 0
+MO #175 energy= 0.123050433934028  occ= 0
+MO #176 energy= 0.123144950363945  occ= 0
+MO #177 energy= 0.123212243981057  occ= 0
+MO #178 energy= 0.129591239051628  occ= 0
+MO #179 energy= 0.129597853364623  occ= 0
+MO #180 energy= 0.129807813961011  occ= 0
+MO #181 energy= 0.129812873757173  occ= 0
+MO #182 energy= 0.129885657297604  occ= 0
+MO #183 energy= 0.129886459571689  occ= 0
+MO #184 energy= 0.133444619064839  occ= 0
+MO #185 energy= 0.133550167851098  occ= 0
+MO #186 energy= 0.153557197203765  occ= 0
+MO #187 energy= 0.153762931919021  occ= 0
+MO #188 energy= 0.153938512461035  occ= 0
+MO #189 energy= 0.154113922505362  occ= 0
+MO #190 energy= 0.204561315045268  occ= 0
+MO #191 energy= 0.20733839880418   occ= 0
+MO #192 energy= 0.21586620915538   occ= 0
+MO #193 energy= 0.225331416429228  occ= 0
+MO #194 energy= 0.229919918464213  occ= 0
+MO #195 energy= 0.238378152502429  occ= 0
+MO #196 energy= 0.293828290068012  occ= 0
+MO #197 energy= 0.29690228808622   occ= 0
+MO #198 energy= 0.297251090904981  occ= 0
+MO #199 energy= 0.298275045099992  occ= 0
+MO #200 energy= 0.298481919208665  occ= 0
+MO #201 energy= 0.298597071720334  occ= 0
+MO #202 energy= 0.298871505163597  occ= 0
+MO #203 energy= 0.300444870994148  occ= 0
+MO #204 energy= 0.310245572918498  occ= 0
+MO #205 energy= 0.312289935676727  occ= 0
+MO #206 energy= 0.320077701941485  occ= 0
+MO #207 energy= 0.32296530794336   occ= 0
+MO #208 energy= 0.337096347692971  occ= 0
+MO #209 energy= 0.337326800907884  occ= 0
+MO #210 energy= 0.33840127812763   occ= 0
+MO #211 energy= 0.339605400260651  occ= 0
+MO #212 energy= 0.340385827220583  occ= 0
+MO #213 energy= 0.341685528708344  occ= 0
+MO #214 energy= 0.343517324172888  occ= 0
+MO #215 energy= 0.3440835160847    occ= 0
+MO #216 energy= 0.348642137622335  occ= 0
+MO #217 energy= 0.351147497816202  occ= 0
+MO #218 energy= 0.404161197990957  occ= 0
+MO #219 energy= 0.411459947139013  occ= 0
+MO #220 energy= 0.436209567915959  occ= 0
+MO #221 energy= 0.442644856870497  occ= 0
+MO #222 energy= 0.465867789800818  occ= 0
+MO #223 energy= 0.472706130903553  occ= 0
+MO #224 energy= 0.485574574248398  occ= 0
+MO #225 energy= 0.493999710721735  occ= 0
+MO #226 energy= 0.497703596376061  occ= 0
+MO #227 energy= 0.499346369019593  occ= 0
+MO #228 energy= 0.51638637577161   occ= 0
+MO #229 energy= 0.523444259753329  occ= 0
+MO #230 energy= 0.541732154688598  occ= 0
+MO #231 energy= 0.547046449525689  occ= 0
+MO #232 energy= 0.590370822831795  occ= 0
+MO #233 energy= 0.606691272943075  occ= 0
+MO #234 energy= 0.607318108974687  occ= 0
+MO #235 energy= 0.607894603788375  occ= 0
+MO #236 energy= 0.613107328747362  occ= 0
+MO #237 energy= 0.616429059347135  occ= 0
+MO #238 energy= 0.626841438887619  occ= 0
+MO #239 energy= 0.62973910312126   occ= 0
+MO #240 energy= 0.630585276054079  occ= 0
+MO #241 energy= 0.636914184063529  occ= 0
+MO #242 energy= 0.659813154629559  occ= 0
+MO #243 energy= 0.673926263183443  occ= 0
+MO #244 energy= 0.68692351413546   occ= 0
+MO #245 energy= 0.743338491367456  occ= 0
+MO #246 energy= 0.744796897011732  occ= 0
+MO #247 energy= 0.74860669553532   occ= 0
+MO #248 energy= 0.749743363213039  occ= 0
+MO #249 energy= 0.770560599046091  occ= 0
+MO #250 energy= 0.771059355810609  occ= 0
+MO #251 energy= 0.77337123626022   occ= 0
+MO #252 energy= 0.775123205842325  occ= 0
+MO #253 energy= 0.777282681334494  occ= 0
+MO #254 energy= 0.777385439124678  occ= 0
+MO #255 energy= 0.777577048707746  occ= 0
+MO #256 energy= 0.777626532942434  occ= 0
+MO #257 energy= 0.780514032486821  occ= 0
+MO #258 energy= 0.780583855361371  occ= 0
+MO #259 energy= 0.783502587005432  occ= 0
+MO #260 energy= 0.795969699650872  occ= 0
+MO #261 energy= 0.801250186622719  occ= 0
+MO #262 energy= 0.801668971330112  occ= 0
+MO #263 energy= 0.80221241799992   occ= 0
+MO #264 energy= 0.804803326107438  occ= 0
+MO #265 energy= 0.805234706722779  occ= 0
+MO #266 energy= 0.80569258846001   occ= 0
+MO #267 energy= 0.8064603901667    occ= 0
+MO #268 energy= 0.812420660722578  occ= 0
+MO #269 energy= 0.867220169946119  occ= 0
+MO #270 energy= 0.867308176362988  occ= 0
+MO #271 energy= 0.869994365848265  occ= 0
+MO #272 energy= 0.870129800604919  occ= 0
+MO #273 energy= 0.870337774892753  occ= 0
+MO #274 energy= 0.870391745241385  occ= 0
+MO #275 energy= 0.933175561291572  occ= 0
+MO #276 energy= 0.933636080728951  occ= 0
+MO #277 energy= 0.934082980338176  occ= 0
+MO #278 energy= 0.934378009386407  occ= 0
+MO #279 energy= 0.937451877232407  occ= 0
+MO #280 energy= 0.938195045948298  occ= 0
+MO #281 energy= 1.01740953311637   occ= 0
+MO #282 energy= 1.01900520378579   occ= 0
+MO #283 energy= 1.02037060264243   occ= 0
+MO #284 energy= 1.02168746366997   occ= 0
+MO #285 energy= 1.02401964411835   occ= 0
+MO #286 energy= 1.02496258745909   occ= 0
+MO #287 energy= 1.02933175251437   occ= 0
+MO #288 energy= 1.04036474964047   occ= 0
+MO #289 energy= 1.04350191905242   occ= 0
+MO #290 energy= 1.04455798802181   occ= 0
+MO #291 energy= 1.09201659379014   occ= 0
+MO #292 energy= 1.09205178882259   occ= 0
+MO #293 energy= 1.09435217602483   occ= 0
+MO #294 energy= 1.09447499868359   occ= 0
+MO #295 energy= 1.09467817483212   occ= 0
+MO #296 energy= 1.09514919468304   occ= 0
+MO #297 energy= 1.10873102954806   occ= 0
+MO #298 energy= 1.11185540427039   occ= 0
+MO #299 energy= 1.12195336162152   occ= 0
+MO #300 energy= 1.12462278987405   occ= 0
+MO #301 energy= 1.3256038806918    occ= 0
+MO #302 energy= 1.33043282228937   occ= 0
+MO #303 energy= 1.37036413173511   occ= 0
+MO #304 energy= 1.38314494628595   occ= 0
+MO #305 energy= 1.52773147457939   occ= 0
+MO #306 energy= 1.5371807225422    occ= 0
+MO #307 energy= 1.55391716680289   occ= 0
+MO #308 energy= 1.5893898920297    occ= 0
+MO #309 energy= 1.60017658300028   occ= 0
+MO #310 energy= 1.60405012221001   occ= 0
+MO #311 energy= 1.60518238766304   occ= 0
+MO #312 energy= 1.61080075886359   occ= 0
+MO #313 energy= 1.62174599196658   occ= 0
+MO #314 energy= 1.62378800214481   occ= 0
+MO #315 energy= 1.64704078183957   occ= 0
+MO #316 energy= 1.67874860772213   occ= 0
+MO #317 energy= 1.70598514122202   occ= 0
+MO #318 energy= 1.71132526612745   occ= 0
+MO #319 energy= 1.85483190477546   occ= 0
+MO #320 energy= 1.86344806762399   occ= 0
+MO #321 energy= 1.87994855656361   occ= 0
+MO #322 energy= 1.91812685669142   occ= 0
+MO #323 energy= 1.92654537371052   occ= 0
+MO #324 energy= 1.93070646378602   occ= 0
+MO #325 energy= 2.65023411559357   occ= 0
+MO #326 energy= 2.65850137988546   occ= 0
+MO #327 energy= 2.68044659487673   occ= 0
+MO #328 energy= 2.70929489382734   occ= 0
+MO #329 energy= 2.74095344493275   occ= 0
+MO #330 energy= 2.76559703736833   occ= 0
+MO #331 energy= 2.83545453473497   occ= 0
+MO #332 energy= 2.8485383787053    occ= 0
+MO #333 energy= 2.89882628113612   occ= 0
+MO #334 energy= 2.91354722505688   occ= 0
+MO #335 energy= 4.40980229214029   occ= 0
+MO #336 energy= 4.46553516920697   occ= 0
+MO #337 energy= 5.73102565916244   occ= 0
+MO #338 energy= 5.74296845314001   occ= 0
+MO #339 energy= 6.24312961805354   occ= 0
+MO #340 energy= 6.25319183591681   occ= 0
+MO #341 energy= 6.28276560830359   occ= 0
+MO #342 energy= 6.34079268067989   occ= 0
+MO #343 energy= 11.408842115802    occ= 0
+MO #344 energy= 11.416844528323    occ= 0
+MO #345 energy= 11.4468435185424   occ= 0
+MO #346 energy= 11.4863385029073   occ= 0
+MO #347 energy= 11.7342563785982   occ= 0
+MO #348 energy= 11.7584218885704   occ= 0
+MO #349 energy= 11.7885824660265   occ= 0
+MO #350 energy= 11.7982772232104   occ= 0
+MO #351 energy= 11.8708157580966   occ= 0
+MO #352 energy= 11.9180161009981   occ= 0
+MO #353 energy= 16.7875789673846   occ= 0
+MO #354 energy= 16.8805590805689   occ= 0
+MO #355 energy= 27.9148188957193   occ= 0
+MO #356 energy= 27.9372863418221   occ= 0
+MO #357 energy= 31.0817053676702   occ= 0
+MO #358 energy= 31.1141763041932   occ= 0
+MO #359 energy= 31.1329780188493   occ= 0
+MO #360 energy= 31.215077449714    occ= 0
+MO #361 energy= 60.4329725996882   occ= 0
+MO #362 energy= 60.4397267408322   occ= 0
+MO #363 energy= 60.4659276603683   occ= 0
+MO #364 energy= 60.4957894236843   occ= 0
+MO #365 energy= 62.6203824727401   occ= 0
+MO #366 energy= 62.6358977088624   occ= 0
+MO #367 energy= 62.6585357244954   occ= 0
+MO #368 energy= 62.6678449410766   occ= 0
+MO #369 energy= 62.7041191099739   occ= 0
+MO #370 energy= 62.7473941139159   occ= 0
+MO #371 energy= 71.9740836093443   occ= 0
+MO #372 energy= 72.0424697467731   occ= 0
+MO #373 energy= 150.734038910081   occ= 0
+MO #374 energy= 150.743368602282   occ= 0
+MO #375 energy= 165.183457347708   occ= 0
+MO #376 energy= 165.201696172393   occ= 0
+MO #377 energy= 165.21107480229    occ= 0
+MO #378 energy= 165.245548430573   occ= 0
+MO #379 energy= 294.470750058579   occ= 0
+MO #380 energy= 294.491143738058   occ= 0
+MO #381 energy= 690.538323582007   occ= 0
+MO #382 energy= 690.539799061219   occ= 0
+MO #383 energy= 798.986347891181   occ= 0
+MO #384 energy= 798.988855779422   occ= 0
+MO #385 energy= 798.99641803615    occ= 0
+MO #386 energy= 799.001026173547   occ= 0
+MO #387 energy= 1008.64573049497   occ= 0
+MO #388 energy= 1008.64974999745   occ= 0
+MO #389 energy= 2865.03473978882   occ= 0
+MO #390 energy= 2865.03563130367   occ= 0
+MO #391 energy= 6964.91698802563   occ= 0
+MO #392 energy= 6964.9172525126    occ= 0
+MO #393 energy= 14850.454115211    occ= 0
+MO #394 energy= 14850.4542075098   occ= 0
+MO #395 energy= 35043.5914049283   occ= 0
+MO #396 energy= 35043.5914339968   occ= 0
+ ** Mulliken pop alpha/beta on meta-lowdin orthogonal AOs **
+ ** Mulliken pop       alpha | beta **
+pop of  0 Dy 1s        0.99999 | 0.99999   
+pop of  0 Dy 2s        1.00000 | 1.00000   
+pop of  0 Dy 3s        1.00000 | 1.00000   
+pop of  0 Dy 4s        0.99999 | 0.99998   
+pop of  0 Dy 5s        0.99769 | 0.99869   
+pop of  0 Dy 6s        0.19922 | 0.19522   
+pop of  0 Dy 7s        0.00715 | 0.00602   
+pop of  0 Dy 8s        0.00045 | 0.00030   
+pop of  0 Dy 9s        0.00025 | 0.00023   
+pop of  0 Dy 10s        0.00018 | 0.00017   
+pop of  0 Dy 11s        0.00000 | 0.00000   
+pop of  0 Dy 12s        0.00001 | 0.00001   
+pop of  0 Dy 13s        0.00001 | 0.00001   
+pop of  0 Dy 14s        0.00000 | 0.00000   
+pop of  0 Dy 15s        0.00000 | 0.00000   
+pop of  0 Dy 16s        0.00000 | 0.00000   
+pop of  0 Dy 17s        0.00000 | 0.00000   
+pop of  0 Dy 18s        0.00000 | 0.00000   
+pop of  0 Dy 2px       0.99897 | 0.99897   
+pop of  0 Dy 2py       0.99897 | 0.99897   
+pop of  0 Dy 2pz       0.99897 | 0.99897   
+pop of  0 Dy 3px       0.99875 | 0.99875   
+pop of  0 Dy 3py       0.99874 | 0.99875   
+pop of  0 Dy 3pz       0.99875 | 0.99875   
+pop of  0 Dy 4px       0.99839 | 0.99837   
+pop of  0 Dy 4py       0.99839 | 0.99838   
+pop of  0 Dy 4pz       0.99840 | 0.99836   
+pop of  0 Dy 5px       0.99542 | 0.99651   
+pop of  0 Dy 5py       0.99484 | 0.99623   
+pop of  0 Dy 5pz       0.99492 | 0.99640   
+pop of  0 Dy 6px       0.00695 | 0.00579   
+pop of  0 Dy 6py       0.00761 | 0.00617   
+pop of  0 Dy 6pz       0.00743 | 0.00606   
+pop of  0 Dy 7px       0.00327 | 0.00278   
+pop of  0 Dy 7py       0.00355 | 0.00295   
+pop of  0 Dy 7pz       0.00353 | 0.00284   
+pop of  0 Dy 8px       0.00157 | 0.00149   
+pop of  0 Dy 8py       0.00164 | 0.00153   
+pop of  0 Dy 8pz       0.00161 | 0.00153   
+pop of  0 Dy 9px       0.00070 | 0.00067   
+pop of  0 Dy 9py       0.00071 | 0.00068   
+pop of  0 Dy 9pz       0.00070 | 0.00068   
+pop of  0 Dy 10px       0.00071 | 0.00071   
+pop of  0 Dy 10py       0.00071 | 0.00070   
+pop of  0 Dy 10pz       0.00071 | 0.00070   
+pop of  0 Dy 11px       0.00068 | 0.00068   
+pop of  0 Dy 11py       0.00068 | 0.00067   
+pop of  0 Dy 11pz       0.00068 | 0.00068   
+pop of  0 Dy 12px       0.00059 | 0.00059   
+pop of  0 Dy 12py       0.00059 | 0.00059   
+pop of  0 Dy 12pz       0.00059 | 0.00059   
+pop of  0 Dy 13px       0.00107 | 0.00107   
+pop of  0 Dy 13py       0.00107 | 0.00107   
+pop of  0 Dy 13pz       0.00107 | 0.00107   
+pop of  0 Dy 3dxy      0.99991 | 0.99991   
+pop of  0 Dy 3dyz      0.99991 | 0.99991   
+pop of  0 Dy 3dz^2     0.99991 | 0.99991   
+pop of  0 Dy 3dxz      0.99991 | 0.99991   
+pop of  0 Dy 3dx2-y2    0.99991 | 0.99991   
+pop of  0 Dy 4dxy      0.99973 | 0.99974   
+pop of  0 Dy 4dyz      0.99972 | 0.99971   
+pop of  0 Dy 4dz^2     0.99973 | 0.99972   
+pop of  0 Dy 4dxz      0.99974 | 0.99974   
+pop of  0 Dy 4dx2-y2    0.99973 | 0.99973   
+pop of  0 Dy 5dxy      0.01443 | 0.01327   
+pop of  0 Dy 5dyz      0.01499 | 0.01347   
+pop of  0 Dy 5dz^2     0.03616 | 0.03246   
+pop of  0 Dy 5dxz      0.01426 | 0.01325   
+pop of  0 Dy 5dx2-y2    0.03619 | 0.03196   
+pop of  0 Dy 6dxy      0.00158 | 0.00168   
+pop of  0 Dy 6dyz      0.00162 | 0.00172   
+pop of  0 Dy 6dz^2     0.00051 | 0.00038   
+pop of  0 Dy 6dxz      0.00160 | 0.00167   
+pop of  0 Dy 6dx2-y2    0.00053 | 0.00037   
+pop of  0 Dy 7dxy      0.00014 | 0.00014   
+pop of  0 Dy 7dyz      0.00014 | 0.00014   
+pop of  0 Dy 7dz^2     0.00251 | 0.00242   
+pop of  0 Dy 7dxz      0.00014 | 0.00014   
+pop of  0 Dy 7dx2-y2    0.00251 | 0.00239   
+pop of  0 Dy 8dxy      0.00004 | 0.00004   
+pop of  0 Dy 8dyz      0.00004 | 0.00004   
+pop of  0 Dy 8dz^2     0.00098 | 0.00094   
+pop of  0 Dy 8dxz      0.00004 | 0.00004   
+pop of  0 Dy 8dx2-y2    0.00098 | 0.00094   
+pop of  0 Dy 9dxy      0.00009 | 0.00009   
+pop of  0 Dy 9dyz      0.00008 | 0.00009   
+pop of  0 Dy 9dz^2     0.00017 | 0.00018   
+pop of  0 Dy 9dxz      0.00009 | 0.00009   
+pop of  0 Dy 9dx2-y2    0.00017 | 0.00018   
+pop of  0 Dy 10dxy      0.00015 | 0.00014   
+pop of  0 Dy 10dyz      0.00015 | 0.00014   
+pop of  0 Dy 10dz^2     0.00014 | 0.00014   
+pop of  0 Dy 10dxz      0.00015 | 0.00014   
+pop of  0 Dy 10dx2-y2    0.00014 | 0.00014   
+pop of  0 Dy 11dxy      0.00018 | 0.00017   
+pop of  0 Dy 11dyz      0.00018 | 0.00017   
+pop of  0 Dy 11dz^2     0.00002 | 0.00002   
+pop of  0 Dy 11dxz      0.00017 | 0.00017   
+pop of  0 Dy 11dx2-y2    0.00002 | 0.00002   
+pop of  0 Dy 4f-3      0.90948 | 0.45540   
+pop of  0 Dy 4f-2      0.84837 | 0.36434   
+pop of  0 Dy 4f-1      0.83215 | 0.25773   
+pop of  0 Dy 4f+0      0.82867 | 0.48585   
+pop of  0 Dy 4f+1      0.85675 | 0.60003   
+pop of  0 Dy 4f+2      0.84450 | 0.37575   
+pop of  0 Dy 4f+3      0.91393 | 0.42360   
+pop of  0 Dy 5f-3      0.00170 | 0.00097   
+pop of  0 Dy 5f-2      0.00120 | 0.00034   
+pop of  0 Dy 5f-1      0.00186 | 0.00088   
+pop of  0 Dy 5f+0      0.00205 | 0.00123   
+pop of  0 Dy 5f+1      0.00146 | 0.00076   
+pop of  0 Dy 5f+2      0.00142 | 0.00057   
+pop of  0 Dy 5f+3      0.00171 | 0.00097   
+pop of  0 Dy 6f-3      0.00196 | 0.00189   
+pop of  0 Dy 6f-2      0.00020 | 0.00005   
+pop of  0 Dy 6f-1      0.00187 | 0.00177   
+pop of  0 Dy 6f+0      0.00224 | 0.00215   
+pop of  0 Dy 6f+1      0.00178 | 0.00169   
+pop of  0 Dy 6f+2      0.00157 | 0.00147   
+pop of  0 Dy 6f+3      0.00196 | 0.00188   
+pop of  1 Cl 1s        1.00000 | 1.00000   
+pop of  1 Cl 2s        1.00000 | 1.00000   
+pop of  1 Cl 3s        0.98073 | 0.98082   
+pop of  1 Cl 4s        0.00148 | 0.00136   
+pop of  1 Cl 2px       1.00000 | 1.00000   
+pop of  1 Cl 2py       1.00000 | 1.00000   
+pop of  1 Cl 2pz       1.00000 | 1.00000   
+pop of  1 Cl 3px       0.96571 | 0.96778   
+pop of  1 Cl 3py       0.99250 | 0.99268   
+pop of  1 Cl 3pz       0.99255 | 0.99273   
+pop of  1 Cl 4px       0.00197 | 0.00180   
+pop of  1 Cl 4py       0.00172 | 0.00168   
+pop of  1 Cl 4pz       0.00172 | 0.00168   
+pop of  2 Cl 1s        1.00000 | 1.00000   
+pop of  2 Cl 2s        1.00000 | 1.00000   
+pop of  2 Cl 3s        0.98073 | 0.98082   
+pop of  2 Cl 4s        0.00148 | 0.00136   
+pop of  2 Cl 2px       1.00000 | 1.00000   
+pop of  2 Cl 2py       1.00000 | 1.00000   
+pop of  2 Cl 2pz       1.00000 | 1.00000   
+pop of  2 Cl 3px       0.96571 | 0.96778   
+pop of  2 Cl 3py       0.99250 | 0.99268   
+pop of  2 Cl 3pz       0.99255 | 0.99273   
+pop of  2 Cl 4px       0.00197 | 0.00180   
+pop of  2 Cl 4py       0.00172 | 0.00168   
+pop of  2 Cl 4pz       0.00172 | 0.00168   
+pop of  3 Cl 1s        1.00000 | 1.00000   
+pop of  3 Cl 2s        1.00000 | 1.00000   
+pop of  3 Cl 3s        0.98073 | 0.98081   
+pop of  3 Cl 4s        0.00153 | 0.00139   
+pop of  3 Cl 2px       1.00000 | 1.00000   
+pop of  3 Cl 2py       1.00000 | 1.00000   
+pop of  3 Cl 2pz       1.00000 | 1.00000   
+pop of  3 Cl 3px       0.99259 | 0.99275   
+pop of  3 Cl 3py       0.96526 | 0.96735   
+pop of  3 Cl 3pz       0.99238 | 0.99258   
+pop of  3 Cl 4px       0.00169 | 0.00164   
+pop of  3 Cl 4py       0.00199 | 0.00179   
+pop of  3 Cl 4pz       0.00170 | 0.00165   
+pop of  4 Cl 1s        1.00000 | 1.00000   
+pop of  4 Cl 2s        1.00000 | 1.00000   
+pop of  4 Cl 3s        0.98073 | 0.98081   
+pop of  4 Cl 4s        0.00153 | 0.00139   
+pop of  4 Cl 2px       1.00000 | 1.00000   
+pop of  4 Cl 2py       1.00000 | 1.00000   
+pop of  4 Cl 2pz       1.00000 | 1.00000   
+pop of  4 Cl 3px       0.99260 | 0.99276   
+pop of  4 Cl 3py       0.96526 | 0.96735   
+pop of  4 Cl 3pz       0.99238 | 0.99258   
+pop of  4 Cl 4px       0.00169 | 0.00164   
+pop of  4 Cl 4py       0.00199 | 0.00179   
+pop of  4 Cl 4pz       0.00170 | 0.00166   
+pop of  5 Cl 1s        1.00000 | 1.00000   
+pop of  5 Cl 2s        1.00000 | 1.00000   
+pop of  5 Cl 3s        0.98072 | 0.98083   
+pop of  5 Cl 4s        0.00151 | 0.00138   
+pop of  5 Cl 2px       1.00000 | 1.00000   
+pop of  5 Cl 2py       1.00000 | 1.00000   
+pop of  5 Cl 2pz       1.00000 | 1.00000   
+pop of  5 Cl 3px       0.99259 | 0.99281   
+pop of  5 Cl 3py       0.99236 | 0.99252   
+pop of  5 Cl 3pz       0.96538 | 0.96757   
+pop of  5 Cl 4px       0.00169 | 0.00165   
+pop of  5 Cl 4py       0.00171 | 0.00167   
+pop of  5 Cl 4pz       0.00197 | 0.00180   
+pop of  6 Cl 1s        1.00000 | 1.00000   
+pop of  6 Cl 2s        1.00000 | 1.00000   
+pop of  6 Cl 3s        0.98072 | 0.98083   
+pop of  6 Cl 4s        0.00151 | 0.00138   
+pop of  6 Cl 2px       1.00000 | 1.00000   
+pop of  6 Cl 2py       1.00000 | 1.00000   
+pop of  6 Cl 2pz       1.00000 | 1.00000   
+pop of  6 Cl 3px       0.99259 | 0.99281   
+pop of  6 Cl 3py       0.99236 | 0.99252   
+pop of  6 Cl 3pz       0.96537 | 0.96757   
+pop of  6 Cl 4px       0.00169 | 0.00165   
+pop of  6 Cl 4py       0.00171 | 0.00167   
+pop of  6 Cl 4pz       0.00197 | 0.00180   
+In total            87.04143 | 83.95857  
+ ** Mulliken atomic charges   ( Nelec_alpha | Nelec_beta ) **
+charge of  0Dy =      2.26970  (    33.41310     30.31719 )
+charge of  1Cl =     -0.87888  (     8.93837      8.94051 )
+charge of  2Cl =     -0.87888  (     8.93837      8.94051 )
+charge of  3Cl =     -0.87782  (     8.93786      8.93996 )
+charge of  4Cl =     -0.87783  (     8.93787      8.93996 )
+charge of  5Cl =     -0.87816  (     8.93793      8.94022 )
+charge of  6Cl =     -0.87814  (     8.93793      8.94022 )
+(3, 198, 198) 198
+S vector [0.1097-0.j 1.8141+0.j 1.5414-0.j]
+(3, 198, 198) 198
+L vector [0.2283-0.j 3.9012-0.j 3.299 +0.j]
+(3, 198, 198) 198
+J vector [0.3381+0.j 5.7154+0.j 4.8404+0.j]
+LO diff from identity 0.003969852403580924
+
+WARN: LO is not orthonormal!
+
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+LO diff from identity 0.003969852403580924
+
+WARN: LO is not orthonormal!
+
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+LO diff from identity 0.003969852403580924
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+
+WARN: LO is not orthonormal!
+
+ao_index [ 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 297 298 299 300 301 302 303 304 305 306 307 308 309 310 311 312 313 314 315 316 317]
+ao_labels ['0 Dy 4f-3  ' '0 Dy 4f-2  ' '0 Dy 4f-1  ' '0 Dy 4f+0  ' '0 Dy 4f+1  ' '0 Dy 4f+2  ' '0 Dy 4f+3  ' '0 Dy 5f-3  ' '0 Dy 5f-2  ' '0 Dy 5f-1  ' '0 Dy 5f+0  ' '0 Dy 5f+1  ' '0 Dy 5f+2  ' '0 Dy 5f+3  ' '0 Dy 6f-3  ' '0 Dy 6f-2  ' '0 Dy 6f-1  ' '0 Dy 6f+0  ' '0 Dy 6f+1  ' '0 Dy 6f+2  ' '0 Dy 6f+3  ']
+  J     M     c^2  
+rank = 0, idx_lst = [ 0 16]
+rank = 4, idx_lst = [ 4 20]
+rank = 10, idx_lst = [10 26]
+rank = 15, idx_lst = [15]
+rank = 6, idx_lst = [ 6 22]
+rank = 7, idx_lst = [ 7 23]
+rank = 8, idx_lst = [ 8 24]
+rank = 12, idx_lst = [12 28]
+rank = 1, idx_lst = [ 1 17]
+rank = 13, idx_lst = [13]
+rank = 9, idx_lst = [ 9 25]
+rank = 3, idx_lst = [ 3 19]
+rank = 11, idx_lst = [11 27]
+rank = 2, idx_lst = [ 2 18]
+rank = 14, idx_lst = [14]
+rank = 5, idx_lst = [ 5 21]
+[hpc-92-18.cm.cluster:1848397] 15 more processes have sent help message help-mpi-btl-openib.txt / error in device init
+[hpc-92-18.cm.cluster:1848397] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+ 7.5    7.5    7.5    0.05849   -0.00005
+ 7.5    7.5    6.5    0.00615    0.10144
+ 7.5    7.5    5.5   -0.12109    0.01470
+ 7.5    7.5    4.5   -0.02105   -0.11507
+ 7.5    7.5    3.5    0.09226   -0.02256
+ 7.5    7.5    2.5    0.01963    0.06415
+ 7.5    7.5    1.5   -0.03911    0.01439
+ 7.5    7.5    0.5   -0.00904   -0.02094
+ 7.5    7.5   -0.5    0.00981   -0.00490
+ 7.5    7.5   -1.5    0.00229    0.00401
+ 7.5    7.5   -2.5   -0.00143    0.00092
+ 7.5    7.5   -3.5   -0.00032   -0.00044
+ 7.5    7.5   -4.5    0.00012   -0.00009
+ 7.5    7.5   -5.5    0.00002    0.00003
+ 7.5    6.5    6.5    0.17641   -0.00014
+ 7.5    6.5    5.5    0.01295    0.21125
+ 7.5    6.5    4.5   -0.20147    0.02457
+ 7.5    6.5    3.5   -0.02953   -0.16213
+ 7.5    6.5    2.5    0.11314   -0.02735
+ 7.5    6.5    1.5    0.02085    0.06922
+ 7.5    6.5    0.5   -0.03720    0.01345
+ 7.5    6.5   -0.5   -0.00743   -0.01751
+ 7.5    6.5   -1.5    0.00719   -0.00353
+ 7.5    6.5   -2.5    0.00144    0.00257
+ 7.5    6.5   -3.5   -0.00081    0.00050
+ 7.5    6.5   -4.5   -0.00015   -0.00022
+ 7.5    6.5   -5.5    0.00005   -0.00004
+ 7.5    6.5   -6.5    0.00001    0.00001
+ 7.5    5.5    5.5    0.25380   -0.00017
+ 7.5    5.5    4.5    0.01481    0.24287
+ 7.5    5.5    3.5   -0.19615    0.02361
+ 7.5    5.5    2.5   -0.02454   -0.13735
+ 7.5    5.5    1.5    0.08434   -0.01994
+ 7.5    5.5    0.5    0.01340    0.04550
+ 7.5    5.5   -0.5   -0.02150    0.00761
+ 7.5    5.5   -1.5   -0.00368   -0.00887
+ 7.5    5.5   -2.5    0.00318   -0.00152
+ 7.5    5.5   -3.5    0.00054    0.00100
+ 7.5    5.5   -4.5   -0.00028    0.00017
+ 7.5    5.5   -5.5   -0.00004   -0.00008
+ 7.5    5.5   -6.5    0.00002   -0.00001
+ 7.5    4.5    4.5    0.23319   -0.00015
+ 7.5    4.5    3.5    0.01127    0.18897
+ 7.5    4.5    2.5   -0.13279    0.01556
+ 7.5    4.5    1.5   -0.01422   -0.08180
+ 7.5    4.5    0.5    0.04429   -0.01020
+ 7.5    4.5   -0.5    0.00605    0.02101
+ 7.5    4.5   -1.5   -0.00870    0.00301
+ 7.5    4.5   -2.5   -0.00127   -0.00314
+ 7.5    4.5   -3.5    0.00099   -0.00045
+ 7.5    4.5   -4.5    0.00013    0.00027
+ 7.5    4.5   -5.5   -0.00006    0.00004
+ 7.5    4.5   -6.5   -0.00001   -0.00001
+ 7.5    3.5    3.5    0.15363   -0.00010
+ 7.5    3.5    2.5    0.00626    0.10830
+ 7.5    3.5    1.5   -0.06694    0.00761
+ 7.5    3.5    0.5   -0.00615   -0.03634
+ 7.5    3.5   -0.5    0.01730   -0.00390
+ 7.5    3.5   -1.5    0.00204    0.00720
+ 7.5    3.5   -2.5   -0.00261    0.00089
+ 7.5    3.5   -3.5   -0.00033   -0.00083
+ 7.5    3.5   -4.5    0.00023   -0.00010
+ 7.5    3.5   -5.5    0.00002    0.00006
+ 7.5    3.5   -6.5   -0.00001    0.00000
+ 7.5    2.5    2.5    0.07658   -0.00004
+ 7.5    2.5    1.5    0.00266    0.04747
+ 7.5    2.5    0.5   -0.02585    0.00287
+ 7.5    2.5   -0.5   -0.00205   -0.01233
+ 7.5    2.5   -1.5    0.00514   -0.00115
+ 7.5    2.5   -2.5    0.00052    0.00187
+ 7.5    2.5   -3.5   -0.00059    0.00020
+ 7.5    2.5   -4.5   -0.00007   -0.00016
+ 7.5    2.5   -5.5    0.00004   -0.00002
+ 7.5    2.5   -6.5    0.00001    0.00001
+ 7.5    1.5    1.5    0.02951   -0.00001
+ 7.5    1.5    0.5    0.00089    0.01610
+ 7.5    1.5   -0.5   -0.00770    0.00085
+ 7.5    1.5   -1.5   -0.00054   -0.00321
+ 7.5    1.5   -2.5    0.00117   -0.00026
+ 7.5    1.5   -3.5    0.00010    0.00037
+ 7.5    1.5   -4.5   -0.00010    0.00003
+ 7.5    1.5   -5.5   -0.00001   -0.00002
+ 7.5    0.5    0.5    0.00881   -0.00001
+ 7.5    0.5   -0.5    0.00023    0.00421
+ 7.5    0.5   -1.5   -0.00175    0.00020
+ 7.5    0.5   -2.5   -0.00011   -0.00063
+ 7.5    0.5   -3.5    0.00020   -0.00005
+ 7.5    0.5   -4.5    0.00002    0.00006
+ 7.5    0.5   -5.5   -0.00002    0.00000
+ 7.5   -0.5   -0.5    0.00202   -0.00001
+ 7.5   -0.5   -1.5    0.00005    0.00084
+ 7.5   -0.5   -2.5   -0.00030    0.00004
+ 7.5   -0.5   -3.5   -0.00002   -0.00009
+ 7.5   -0.5   -4.5    0.00002   -0.00001
+ 7.5   -1.5   -1.5    0.00035   -0.00000
+ 7.5   -1.5   -2.5    0.00000    0.00012
+ 7.5   -1.5   -3.5   -0.00003
+ 7.5   -2.5   -2.5    0.00004    0.00001
+ 7.5   -2.5   -3.5   -0.00001    0.00001
+ 7.5   -3.5   -3.5    0.00001    0.00001
+triangle [[ 0.0585-0.j      0.0062+0.1014j -0.1211+0.0147j -0.021 -0.1151j  0.0923-0.0226j  0.0196+0.0642j -0.0391+0.0144j -0.009 -0.0209j  0.0098-0.0049j  0.0023+0.004j  -0.0014+0.0009j -0.0003-0.0004j  0.0001-0.0001j  0.    +0.j     -0.    +0.j     -0.    -0.j    ]
+ [ 0.    +0.j      0.1764-0.0001j  0.013 +0.2113j -0.2015+0.0246j -0.0295-0.1621j  0.1131-0.0274j  0.0209+0.0692j -0.0372+0.0135j -0.0074-0.0175j  0.0072-0.0035j  0.0014+0.0026j -0.0008+0.0005j -0.0001-0.0002j  0.0001-0.j      0.    +0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.2538-0.0002j  0.0148+0.2429j -0.1962+0.0236j -0.0245-0.1374j  0.0843-0.0199j  0.0134+0.0455j -0.0215+0.0076j -0.0037-0.0089j  0.0032-0.0015j  0.0005+0.001j  -0.0003+0.0002j -0.    -0.0001j  0.    -0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.2332-0.0001j  0.0113+0.189j  -0.1328+0.0156j -0.0142-0.0818j  0.0443-0.0102j  0.006 +0.021j  -0.0087+0.003j  -0.0013-0.0031j  0.001 -0.0004j  0.0001+0.0003j -0.0001+0.j     -0.    -0.j      0.    -0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.1536-0.0001j  0.0063+0.1083j -0.0669+0.0076j -0.0062-0.0363j  0.0173-0.0039j  0.002 +0.0072j -0.0026+0.0009j -0.0003-0.0008j  0.0002-0.0001j  0.    +0.0001j -0.    +0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.0766-0.j      0.0027+0.0475j -0.0258+0.0029j -0.0021-0.0123j  0.0051-0.0011j  0.0005+0.0019j -0.0006+0.0002j -0.0001-0.0002j  0.    -0.j      0.    +0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.0295-0.j      0.0009+0.0161j -0.0077+0.0008j -0.0005-0.0032j  0.0012-0.0003j  0.0001+0.0004j -0.0001+0.j     -0.    -0.j      0.    -0.j      0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.0088-0.j      0.0002+0.0042j -0.0018+0.0002j -0.0001-0.0006j  0.0002-0.0001j  0.    +0.0001j -0.    +0.j     -0.    -0.j     -0.    -0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.002 -0.j      0.    +0.0008j -0.0003+0.j     -0.    -0.0001j  0.    -0.j      0.    +0.j     -0.    +0.j      0.    -0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.0004-0.j      0.    +0.0001j -0.    +0.j      0.    -0.j     -0.    -0.j      0.    -0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    +0.j     -0.    +0.j      0.    -0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    -0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    -0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    -0.j      0.    +0.j     -0.    +0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j     -0.    -0.j      0.    -0.j    ]
+ [ 0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j      0.    +0.j     -0.    -0.j    ]]
+full [[ 0.0585+0.j      0.0062+0.1014j -0.1211+0.0147j -0.021 -0.1151j  0.0923-0.0226j  0.0196+0.0642j -0.0391+0.0144j -0.009 -0.0209j  0.0098-0.0049j  0.0023+0.004j  -0.0014+0.0009j -0.0003-0.0004j  0.0001-0.0001j  0.    +0.j     -0.    +0.j     -0.    -0.j    ]
+ [ 0.0062-0.1014j  0.1764+0.j      0.013 +0.2113j -0.2015+0.0246j -0.0295-0.1621j  0.1131-0.0274j  0.0209+0.0692j -0.0372+0.0135j -0.0074-0.0175j  0.0072-0.0035j  0.0014+0.0026j -0.0008+0.0005j -0.0001-0.0002j  0.0001-0.j      0.    +0.j     -0.    +0.j    ]
+ [-0.1211-0.0147j  0.013 -0.2113j  0.2538+0.j      0.0148+0.2429j -0.1962+0.0236j -0.0245-0.1374j  0.0843-0.0199j  0.0134+0.0455j -0.0215+0.0076j -0.0037-0.0089j  0.0032-0.0015j  0.0005+0.001j  -0.0003+0.0002j -0.    -0.0001j  0.    -0.j     -0.    +0.j    ]
+ [-0.021 +0.1151j -0.2015-0.0246j  0.0148-0.2429j  0.2332+0.j      0.0113+0.189j  -0.1328+0.0156j -0.0142-0.0818j  0.0443-0.0102j  0.006 +0.021j  -0.0087+0.003j  -0.0013-0.0031j  0.001 -0.0004j  0.0001+0.0003j -0.0001+0.j     -0.    -0.j      0.    -0.j    ]
+ [ 0.0923+0.0226j -0.0295+0.1621j -0.1962-0.0236j  0.0113-0.189j   0.1536+0.j      0.0063+0.1083j -0.0669+0.0076j -0.0062-0.0363j  0.0173-0.0039j  0.002 +0.0072j -0.0026+0.0009j -0.0003-0.0008j  0.0002-0.0001j  0.    +0.0001j -0.    +0.j     -0.    +0.j    ]
+ [ 0.0196-0.0642j  0.1131+0.0274j -0.0245+0.1374j -0.1328-0.0156j  0.0063-0.1083j  0.0766+0.j      0.0027+0.0475j -0.0258+0.0029j -0.0021-0.0123j  0.0051-0.0011j  0.0005+0.0019j -0.0006+0.0002j -0.0001-0.0002j  0.    -0.j      0.    +0.j     -0.    +0.j    ]
+ [-0.0391-0.0144j  0.0209-0.0692j  0.0843+0.0199j -0.0142+0.0818j -0.0669-0.0076j  0.0027-0.0475j  0.0295+0.j      0.0009+0.0161j -0.0077+0.0008j -0.0005-0.0032j  0.0012-0.0003j  0.0001+0.0004j -0.0001+0.j     -0.    -0.j      0.    -0.j      0.    +0.j    ]
+ [-0.009 +0.0209j -0.0372-0.0135j  0.0134-0.0455j  0.0443+0.0102j -0.0062+0.0363j -0.0258-0.0029j  0.0009-0.0161j  0.0088+0.j      0.0002+0.0042j -0.0018+0.0002j -0.0001-0.0006j  0.0002-0.0001j  0.    +0.0001j -0.    +0.j     -0.    -0.j     -0.    -0.j    ]
+ [ 0.0098+0.0049j -0.0074+0.0175j -0.0215-0.0076j  0.006 -0.021j   0.0173+0.0039j -0.0021+0.0123j -0.0077-0.0008j  0.0002-0.0042j  0.002 +0.j      0.    +0.0008j -0.0003+0.j     -0.    -0.0001j  0.    -0.j      0.    +0.j     -0.    +0.j      0.    -0.j    ]
+ [ 0.0023-0.004j   0.0072+0.0035j -0.0037+0.0089j -0.0087-0.003j   0.002 -0.0072j  0.0051+0.0011j -0.0005+0.0032j -0.0018-0.0002j  0.    -0.0008j  0.0004+0.j      0.    +0.0001j -0.    +0.j      0.    -0.j     -0.    -0.j      0.    -0.j     -0.    +0.j    ]
+ [-0.0014-0.0009j  0.0014-0.0026j  0.0032+0.0015j -0.0013+0.0031j -0.0026-0.0009j  0.0005-0.0019j  0.0012+0.0003j -0.0001+0.0006j -0.0003-0.j      0.    -0.0001j  0.    +0.j     -0.    +0.j     -0.    -0.j      0.    +0.j     -0.    +0.j      0.    -0.j    ]
+ [-0.0003+0.0004j -0.0008-0.0005j  0.0005-0.001j   0.001 +0.0004j -0.0003+0.0008j -0.0006-0.0002j  0.0001-0.0004j  0.0002+0.0001j -0.    +0.0001j -0.    -0.j     -0.    -0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    -0.j     -0.    +0.j    ]
+ [ 0.0001+0.0001j -0.0001+0.0002j -0.0003-0.0002j  0.0001-0.0003j  0.0002+0.0001j -0.0001+0.0002j -0.0001-0.j      0.    -0.0001j  0.    +0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    -0.j    ]
+ [ 0.    -0.j      0.0001+0.j     -0.    +0.0001j -0.0001-0.j      0.    -0.0001j  0.    +0.j     -0.    +0.j     -0.    -0.j      0.    -0.j     -0.    +0.j      0.    -0.j     -0.    +0.j     -0.    -0.j      0.    +0.j      0.    +0.j     -0.    +0.j    ]
+ [-0.    -0.j      0.    -0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    -0.j      0.    +0.j     -0.    +0.j     -0.    -0.j      0.    +0.j     -0.    -0.j      0.    +0.j     -0.    +0.j      0.    -0.j     -0.    +0.j      0.    -0.j    ]
+ [-0.    +0.j     -0.    -0.j     -0.    -0.j      0.    +0.j     -0.    -0.j     -0.    -0.j      0.    -0.j     -0.    +0.j      0.    +0.j     -0.    -0.j      0.    +0.j     -0.    -0.j      0.    +0.j     -0.    -0.j      0.    +0.j     -0.    +0.j    ]]
+Sum of c^2 0.9928326365585652
+Thu Apr 17 13:25:55 PDT 2025

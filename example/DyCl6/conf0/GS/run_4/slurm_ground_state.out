@@ -1,0 +1,714 @@
+Currently Loaded Modulefiles:
+ 1) gmp/6.2.1-gcc-13.2.0-lcnhyse <aL>             
+ 2) mpfr/4.2.0-gcc-13.2.0-yy2fkq5 <aL>            
+ 3) mpc/1.3.1-gcc-13.2.0-5kgoftq <aL>             
+ 4) zlib-ng/2.1.3-gcc-13.2.0-jetnfwa <aL>         
+ 5) zstd/1.5.5-gcc-13.2.0-t2lua3l <aL>            
+ 6) gcc/13.2.0-gcc-13.2.0-w55nxkl                 
+ 7) cmake/3.20.2-gcc-13.2.0-rp74vpv               
+ 8) libfabric/1.18.1-gcc-13.2.0-bijxar4 <aL>      
+ 9) numactl/2.0.14-gcc-13.2.0-etkf74e <aL>        
+10) openssh/8.7p1-gcc-13.2.0-g55xmkx <aL>         
+11) slurm/22.05.6-gcc-13.2.0-tchsn6y <aL>         
+12) openmpi/4.1.5-gcc-13.2.0-24q3ap2              
+13) libpciaccess/0.17-gcc-13.2.0-r2cijnn <aL>     
+14) libiconv/1.17-gcc-13.2.0-ntov4te <aL>         
+15) xz/5.4.1-gcc-13.2.0-4xkm5xo <aL>              
+16) libxml2/2.10.3-gcc-13.2.0-fr6jcjz <aL>        
+17) ncurses/6.4-gcc-13.2.0-4o2yj6n <aL>           
+18) hwloc/2.9.1-gcc-13.2.0-gzvfolk <aL>           
+19) intel-tbb/2021.9.0-gcc-13.2.0-6nwk3ml <aL>    
+20) intel-oneapi-mkl/2023.2.0-gcc-13.2.0-ohvyk7g  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+/central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/GS/run_4
+Tue Apr 15 10:54:06 PDT 2025
+hpc-35-03.cm.cluster
+--------------------------------------------------------------------------
+WARNING: There is at least one non-excluded one OpenFabrics device found,
+but there are no active ports detected (or Open MPI was unable to use
+them).  This is most certainly not what you wanted.  Check your
+cables, subnet manager configuration, etc.  The openib BTL will be
+ignored for this job.
+
+  Local host: hpc-35-03
+--------------------------------------------------------------------------
+Apr 15 10:54:12 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/GS/run_4/ground_state.py ****
+'''
+Example input to calculate the ground state of a molecular system
+Include x2c relativistic effect
+'''
+import pyscf
+from pyscf.scf.hf import RHF
+from pyscf.dft.uks import UKS
+from pyscf.dft.gks import GKS
+from pyscf import lib
+import os, sys
+import numpy as np
+import scipy.linalg as la
+from scipy.linalg import sqrtm, eigh
+from scipy.optimize import root
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+log = lib.logger.Logger(sys.stdout, 4)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import cdft, project, utils
+    from stevens.project import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 32000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+    qmmm = True # add environment with classical charges
+
+    # (c)HF/DFT parameters
+    xc = 'HF' # functional
+    smearing = None # To help HF/DFT converge, try e.g. 5e-2
+    chkfname_guess = 'project' # initial guess. 'minao' for default PySCF guess; None for constrained HF; 
+                # path to a checkpoint file to restart from a SCF solution.
+                # 'project' to project from the SCF solution in a small basis to generate the initial guess
+    chkfname_small = '../gs_small_%s.chk'%geometry # checkpoint file in a small basis. Used when chkfname_guess == 'project'
+    basis_small = {'default': 'minao', 'Dy': 'cc-x2c-minao'}# the small basis associated with chkfname_small
+    change_dm_mode = 'rotate' # None: no change
+                          # 'positive_z': set the 4f block of dm so that J~(0,0,J)
+                          # 'rotate': rotate the 4f block of dm by some angles
+    atom_index = 0 # the index of central lanthanide atom
+    occ_idx = 4
+    noise = 0 # max noise on density matrix initial guess
+
+    # constrained HF parameters for the initial guess
+    ao_shell = 'f'
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    multiplier0 = 0.1
+    # END USER INPUT
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # generate HF/DFT initial guess
+    if chkfname_guess == 'minao':
+        mf = scf.GKS(mol).x2c()
+        dm0 = mf.get_init_guess()
+        print("Use PySCF default init guess")
+    elif chkfname_guess is None:
+        # run constrained DFT
+        angles = cdft.sample_rotation('xyz', occ_idx, unit=20)
+        from scipy.spatial.transform import Rotation
+        direction = Rotation.from_euler('zyz', angles, degrees=False) @ [0,0,1]
+        cmf = cdft.CGKS(mol, direction, multiplier_guess=multiplier0, max_cycle=300,
+                atom_index=atom_index, ao_shell='f', lo_chkfname=lo_chkfname, xc=xc, smearing=smearing)
+        cmf.kernel()
+        dm0 = cmf._scf.make_rdm1()
+        print("Contrained SCF solution as init guess")
+    elif chkfname_guess == 'project':
+        # project dm0 in a small basis to the larger basis 
+        dm0 = utils.project_dm_from_small_basis(mol, basis_small, chkfname_small, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+        print("Project wavefunction in a smaller basis to the target basis as init guess")
+    else:
+        mf = scf.GKS(mol).x2c()
+        data = chkfile.load(chkfname_guess, 'scf')
+        mf.__dict__.update(data)
+        dm0 = mf.make_rdm1()
+        mf.analyze(with_meta_lowdin=False)
+        print("Load .chk file for init guess")
+    if change_dm_mode is not None and not chkfname_guess == 'project': # when chkfname_guess == 'project', change in small basis
+        dm0 = utils.change_dm_guess(mol, dm0, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+    dm0 += (np.random.rand(*(dm0.shape)) - 0.5) * noise  
+    print("J vector of initial guess", get_mj(mol, dm0, analyze=True))
+
+    # run HF/DFT
+    mf = scf.GKS(mol).x2c()
+    mf.xc = xc
+    if xc.upper() != 'HF':
+        mf.collinear = 'mcol'
+        mf.grids.level = 6 
+    mf.chkfile = 'gs_' + geometry + '.chk' 
+    mf.max_cycle = 1000 
+    if smearing is not None:
+        mf = scf.addons.smearing_(mf, sigma=smearing, method="fermi")
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = mf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        mf.get_hcore = types.MethodType(get_hcore_mm, mf)
+    mf.kernel(dm0=dm0)
+    dm = mf.make_rdm1()
+    print("S vector", get_mj(mol, dm, include_L=False))
+    print("L vector", get_mj(mol, dm, include_S=False))
+    print("J vector", get_mj(mol, dm))
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-35-03.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 8
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Tue Apr 15 10:54:14 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 84
+number of NR pGTOs = 449
+number of NR cGTOs = 198
+basis = {'default': '631g', 'Dy': 'sarc-dkh'}
+ecp = {}
+CPU time:         3.94
+N_elec (88, 83), N_ao 198
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_Dy/conf7/GS/run_4/ground_state.py ****
+'''
+Example input to calculate the ground state of a molecular system
+Include x2c relativistic effect
+'''
+import pyscf
+from pyscf.scf.hf import RHF
+from pyscf.dft.uks import UKS
+from pyscf.dft.gks import GKS
+from pyscf import lib
+import os, sys
+import numpy as np
+import scipy.linalg as la
+from scipy.linalg import sqrtm, eigh
+from scipy.optimize import root
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+log = lib.logger.Logger(sys.stdout, 4)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import cdft, project, utils
+    from stevens.project import get_mj
+
+    # system input
+    geometry = 'DyCl6' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 5 # number of unpaired electrons in a unit cell
+    charge = -3 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Dy': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 32000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+    qmmm = True # add environment with classical charges
+
+    # (c)HF/DFT parameters
+    xc = 'HF' # functional
+    smearing = None # To help HF/DFT converge, try e.g. 5e-2
+    chkfname_guess = 'project' # initial guess. 'minao' for default PySCF guess; None for constrained HF; 
+                # path to a checkpoint file to restart from a SCF solution.
+                # 'project' to project from the SCF solution in a small basis to generate the initial guess
+    chkfname_small = '../gs_small_%s.chk'%geometry # checkpoint file in a small basis. Used when chkfname_guess == 'project'
+    basis_small = {'default': 'minao', 'Dy': 'cc-x2c-minao'}# the small basis associated with chkfname_small
+    change_dm_mode = 'rotate' # None: no change
+                          # 'positive_z': set the 4f block of dm so that J~(0,0,J)
+                          # 'rotate': rotate the 4f block of dm by some angles
+    atom_index = 0 # the index of central lanthanide atom
+    occ_idx = 4
+    noise = 0 # max noise on density matrix initial guess
+
+    # constrained HF parameters for the initial guess
+    ao_shell = 'f'
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    multiplier0 = 0.1
+    # END USER INPUT
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # generate HF/DFT initial guess
+    if chkfname_guess == 'minao':
+        mf = scf.GKS(mol).x2c()
+        dm0 = mf.get_init_guess()
+        print("Use PySCF default init guess")
+    elif chkfname_guess is None:
+        # run constrained DFT
+        angles = cdft.sample_rotation('xyz', occ_idx, unit=20)
+        from scipy.spatial.transform import Rotation
+        direction = Rotation.from_euler('zyz', angles, degrees=False) @ [0,0,1]
+        cmf = cdft.CGKS(mol, direction, multiplier_guess=multiplier0, max_cycle=300,
+                atom_index=atom_index, ao_shell='f', lo_chkfname=lo_chkfname, xc=xc, smearing=smearing)
+        cmf.kernel()
+        dm0 = cmf._scf.make_rdm1()
+        print("Contrained SCF solution as init guess")
+    elif chkfname_guess == 'project':
+        # project dm0 in a small basis to the larger basis 
+        dm0 = utils.project_dm_from_small_basis(mol, basis_small, chkfname_small, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+        print("Project wavefunction in a smaller basis to the target basis as init guess")
+    else:
+        mf = scf.GKS(mol).x2c()
+        data = chkfile.load(chkfname_guess, 'scf')
+        mf.__dict__.update(data)
+        dm0 = mf.make_rdm1()
+        mf.analyze(with_meta_lowdin=False)
+        print("Load .chk file for init guess")
+    if change_dm_mode is not None and not chkfname_guess == 'project': # when chkfname_guess == 'project', change in small basis
+        dm0 = utils.change_dm_guess(mol, dm0, change_dm_mode, atom_index=atom_index, occ_idx=occ_idx)
+    dm0 += (np.random.rand(*(dm0.shape)) - 0.5) * noise  
+    print("J vector of initial guess", get_mj(mol, dm0, analyze=True))
+
+    # run HF/DFT
+    mf = scf.GKS(mol).x2c()
+    mf.xc = xc
+    if xc.upper() != 'HF':
+        mf.collinear = 'mcol'
+        mf.grids.level = 6 
+    mf.chkfile = 'gs_' + geometry + '.chk' 
+    mf.max_cycle = 1000 
+    if smearing is not None:
+        mf = scf.addons.smearing_(mf, sigma=smearing, method="fermi")
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = mf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        mf.get_hcore = types.MethodType(get_hcore_mm, mf)
+    mf.kernel(dm0=dm0)
+    dm = mf.make_rdm1()
+    print("S vector", get_mj(mol, dm, include_L=False))
+    print("L vector", get_mj(mol, dm, include_S=False))
+    print("J vector", get_mj(mol, dm))
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-35-03.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 8
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Tue Apr 15 10:54:14 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 7
+[INPUT] num. electrons = 171
+[INPUT] charge = -3
+[INPUT] spin (= nelec alpha-beta = 2S) = 5
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Dy     0.000000000000   0.000000000000   0.000000000000 AA    0.000000000000   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  2 Cl     2.724000000000   0.000000000000   0.000000000000 AA    5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  3 Cl    -2.724000000000   0.000000000000   0.000000000000 AA   -5.147613963315   0.000000000000   0.000000000000 Bohr   0.0
+[INPUT]  4 Cl     0.000000000000   2.724000000000   0.000000000000 AA    0.000000000000   5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  5 Cl     0.000000000000  -2.724000000000   0.000000000000 AA    0.000000000000  -5.147613963315   0.000000000000 Bohr   0.0
+[INPUT]  6 Cl     0.000000000000   0.000000000000   2.724000000000 AA    0.000000000000   0.000000000000   5.147613963315 Bohr   0.0
+[INPUT]  7 Cl     0.000000000000   0.000000000000  -2.724000000000 AA    0.000000000000   0.000000000000  -5.147613963315 Bohr   0.0
+
+nuclear repulsion = 1868.38919656687
+number of shells = 16
+number of NR pGTOs = 511
+number of NR cGTOs = 89
+basis = {'default': 'minao', 'Dy': 'cc-x2c-minao'}
+ecp = {}
+CPU time:         4.14
+basis {'default': '631g', 'Dy': 'sarc-dkh'} 198
+basis {'default': 'minao', 'Dy': 'cc-x2c-minao'} 89
+(3, 89, 89) 89
+Haar random target direction [0.9510565162951535, 0.0, 0.30901699437494745]
+Haar random total rotation [0.     1.2566 0.    ]
+Rotated f-block dm by angles from +z [0.     1.2566 0.    ]
+Project wavefunction in a smaller basis to the target basis as init guess
+(3, 198, 198) 198
+elemental J of ['Cl' 'Dy']
+  Cl -0.0006+0.0000j 0.0000+0.0000j 0.0308+0.0000j 
+  Dy 7.0934-0.0000j 0.0000+0.0000j 2.2879-0.0000j 
+J vector of initial guess [ 7.0927-0.j -0.    -0.j  2.3187+0.j]
+
+
+******** <class 'pyscf.x2c.x2c.X2C1eGKS'> ********
+method = X2C1eGKS
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+diis_damp = 0
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 1000
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = gs_DyCl6.chk
+max_memory 32000 MB (current use 149 MB)
+XC library pyscf.dft.libxc version 6.1.0
+    S. Lehtola, C. Steigemann, M. J.T. Oliveira, and M. A.L. Marques.,  SoftwareX 7, 1–5 (2018)
+XC functionals = HF
+
+radial grids: 
+    Treutler-Ahlrichs [JCP 102, 346 (1995); DOI:10.1063/1.469408] (M4) radial grids
+    
+becke partition: Becke, JCP 88, 2547 (1988); DOI:10.1063/1.454033
+pruning grids: <function nwchem_prune at 0x7ff7f95d5e40>
+grids dens level: 3
+symmetrized grids: False
+atomic radii adjust function: <function treutler_atomic_radii_adjust at 0x7ff7f95d6480>
+small_rho_cutoff = 1e-07
+collinear = col
+
+
+******** <class 'pyscf.x2c.x2c.SpinOrbitalX2CHelper'> ********
+approx = 1e
+xuncontract = 1
+Overwritten attributes  get_hcore  of <class 'pyscf.x2c.x2c.X2C1eGKS'>
+Set gradient conv threshold to 3.16228e-05
+tot grids = 134432
+init E= -14971.0795243459
+  HOMO = -0.283002782678314  LUMO = -0.0659543085093562
+cycle= 1 E= -14978.6016728623  delta_E= -7.52  |g|= 1.63  |ddm|= 2.41
+  HOMO = -0.291592297681171  LUMO = 0.124178137829677
+cycle= 2 E= -14978.7072396273  delta_E= -0.106  |g|= 0.683  |ddm|= 1.12
+  HOMO = -0.322345337660742  LUMO = 0.122308372596876
+cycle= 3 E= -14978.7609339361  delta_E= -0.0537  |g|= 0.275  |ddm|= 0.518
+  HOMO = -0.322441660687891  LUMO = 0.122626547637168
+cycle= 4 E= -14978.7668672081  delta_E= -0.00593  |g|= 0.0221  |ddm|= 0.091
+  HOMO = -0.323611578461441  LUMO = 0.122828206903689
+cycle= 5 E= -14978.7670828145  delta_E= -0.000216  |g|= 0.00618  |ddm|= 0.0255
+  HOMO = -0.323451473761999  LUMO = 0.122833857941063
+cycle= 6 E= -14978.7671444407  delta_E= -6.16e-05  |g|= 0.00489  |ddm|= 0.0109
+  HOMO = -0.323487832096485  LUMO = 0.122839946502725
+cycle= 7 E= -14978.7672255403  delta_E= -8.11e-05  |g|= 0.00368  |ddm|= 0.0137
+  HOMO = -0.323331530163062  LUMO = 0.122837205391709
+cycle= 8 E= -14978.7673088355  delta_E= -8.33e-05  |g|= 0.00178  |ddm|= 0.0226
+  HOMO = -0.323428673379248  LUMO = 0.122834442039246
+cycle= 9 E= -14978.7673272229  delta_E= -1.84e-05  |g|= 0.000693  |ddm|= 0.0133
+  HOMO = -0.323429138470945  LUMO = 0.122833937424344
+cycle= 10 E= -14978.7673287148  delta_E= -1.49e-06  |g|= 0.000479  |ddm|= 0.00278
+  HOMO = -0.323442684731889  LUMO = 0.122834486040522
+cycle= 11 E= -14978.7673295106  delta_E= -7.96e-07  |g|= 0.000391  |ddm|= 0.00153
+  HOMO = -0.323443026526416  LUMO = 0.122835005652346
+cycle= 12 E= -14978.7673302131  delta_E= -7.02e-07  |g|= 0.000347  |ddm|= 0.00136
+  HOMO = -0.323445994219537  LUMO = 0.122834453605584
+cycle= 13 E= -14978.7673309471  delta_E= -7.34e-07  |g|= 0.000324  |ddm|= 0.00155
+  HOMO = -0.323438896990328  LUMO = 0.122834574650252
+cycle= 14 E= -14978.7673314623  delta_E= -5.15e-07  |g|= 0.000316  |ddm|= 0.00113
+  HOMO = -0.323439092448844  LUMO = 0.122834683754639
+cycle= 15 E= -14978.7673320576  delta_E= -5.95e-07  |g|= 0.000309  |ddm|= 0.00132
+  HOMO = -0.323438233999268  LUMO = 0.12283466196899
+cycle= 16 E= -14978.7673338142  delta_E= -1.76e-06  |g|= 0.000292  |ddm|= 0.00411
+  HOMO = -0.323437543067896  LUMO = 0.12283485215747
+cycle= 17 E= -14978.7673354986  delta_E= -1.68e-06  |g|= 0.000283  |ddm|= 0.00426
+  HOMO = -0.323439579104257  LUMO = 0.122834557870416
+cycle= 18 E= -14978.7673362339  delta_E= -7.35e-07  |g|= 0.000279  |ddm|= 0.00189
+  HOMO = -0.323438503166526  LUMO = 0.12283474818926
+cycle= 19 E= -14978.7673370558  delta_E= -8.22e-07  |g|= 0.000277  |ddm|= 0.00211
+  HOMO = -0.32343815152566  LUMO = 0.122834663949971
+cycle= 20 E= -14978.767337763  delta_E= -7.07e-07  |g|= 0.000275  |ddm|= 0.00181
+  HOMO = -0.323437053648192  LUMO = 0.122834707063448
+cycle= 21 E= -14978.7673382603  delta_E= -4.97e-07  |g|= 0.000274  |ddm|= 0.00127
+  HOMO = -0.323436868333851  LUMO = 0.122834687110466
+cycle= 22 E= -14978.7673390076  delta_E= -7.47e-07  |g|= 0.000273  |ddm|= 0.0019
+  HOMO = -0.323435855346472  LUMO = 0.122834585657972
+cycle= 23 E= -14978.7673400639  delta_E= -1.06e-06  |g|= 0.000272  |ddm|= 0.0027
+  HOMO = -0.323436397992171  LUMO = 0.122834541325451
+cycle= 24 E= -14978.7673409178  delta_E= -8.54e-07  |g|= 0.000271  |ddm|= 0.00219
+  HOMO = -0.323435208110918  LUMO = 0.122834620946854
+cycle= 25 E= -14978.7673417626  delta_E= -8.45e-07  |g|= 0.000271  |ddm|= 0.00217
+  HOMO = -0.323434959978707  LUMO = 0.122834586103495
+cycle= 26 E= -14978.7673427473  delta_E= -9.85e-07  |g|= 0.00027  |ddm|= 0.00253
+  HOMO = -0.323434482083858  LUMO = 0.122834550925533
+cycle= 27 E= -14978.7673435444  delta_E= -7.97e-07  |g|= 0.00027  |ddm|= 0.00205
+  HOMO = -0.323433936488414  LUMO = 0.122834517661308
+cycle= 28 E= -14978.7673444118  delta_E= -8.67e-07  |g|= 0.00027  |ddm|= 0.00223
+  HOMO = -0.323433689879505  LUMO = 0.122834463930842
+cycle= 29 E= -14978.7673462279  delta_E= -1.82e-06  |g|= 0.000269  |ddm|= 0.00468
+  HOMO = -0.323432522053435  LUMO = 0.122834545155316
+cycle= 30 E= -14978.7673486083  delta_E= -2.38e-06  |g|= 0.000268  |ddm|= 0.00616
+  HOMO = -0.323430717631252  LUMO = 0.122834546256308
+cycle= 31 E= -14978.7673517008  delta_E= -3.09e-06  |g|= 0.000267  |ddm|= 0.00804
+  HOMO = -0.323428826669229  LUMO = 0.122834571303431
+cycle= 32 E= -14978.7673565552  delta_E= -4.85e-06  |g|= 0.000266  |ddm|= 0.0127
+  HOMO = -0.323424786484757  LUMO = 0.122834484133293
+cycle= 33 E= -14978.7673634273  delta_E= -6.87e-06  |g|= 0.000267  |ddm|= 0.0182
+  HOMO = -0.323424736249488  LUMO = 0.122834488131296
+cycle= 34 E= -14978.7673634421  delta_E= -1.49e-08  |g|= 0.000266  |ddm|= 4.16e-05
+  HOMO = -0.323413819525126  LUMO = 0.122834329834566
+cycle= 35 E= -14978.7673862199  delta_E= -2.28e-05  |g|= 0.00061  |ddm|= 0.0629
+  HOMO = -0.323414505094364  LUMO = 0.122834384027911
+cycle= 36 E= -14978.7673866522  delta_E= -4.32e-07  |g|= 0.000566  |ddm|= 0.00117
+  HOMO = -0.323413087410837  LUMO = 0.122834353841562
+cycle= 37 E= -14978.7673884562  delta_E= -1.8e-06  |g|= 0.000613  |ddm|= 0.00523
+  HOMO = -0.323414253166368  LUMO = 0.122834379646555
+cycle= 38 E= -14978.7673864116  delta_E= 2.04e-06  |g|= 0.00049  |ddm|= 0.00606
+  HOMO = -0.323415856470964  LUMO = 0.122834389743017
+cycle= 39 E= -14978.7673830194  delta_E= 3.39e-06  |g|= 0.000381  |ddm|= 0.00971
+  HOMO = -0.323417848403534  LUMO = 0.122834428913233
+cycle= 40 E= -14978.7673799578  delta_E= 3.06e-06  |g|= 0.000297  |ddm|= 0.00864
+  HOMO = -0.323420319770269  LUMO = 0.122834445540409
+cycle= 41 E= -14978.7673736852  delta_E= 6.27e-06  |g|= 0.000282  |ddm|= 0.0173
+  HOMO = -0.323411255935824  LUMO = 0.122834347436772
+cycle= 42 E= -14978.7673903025  delta_E= -1.66e-05  |g|= 0.000304  |ddm|= 0.0463
+  HOMO = -0.323414717000926  LUMO = 0.122834493903132
+cycle= 43 E= -14978.7673853041  delta_E= 5e-06  |g|= 0.000266  |ddm|= 0.0143
+  HOMO = -0.323410760813341  LUMO = 0.122834442708913
+cycle= 44 E= -14978.7673944787  delta_E= -9.17e-06  |g|= 0.000285  |ddm|= 0.0262
+  HOMO = -0.323411840269164  LUMO = 0.122834478621126
+cycle= 45 E= -14978.767391801  delta_E= 2.68e-06  |g|= 0.000248  |ddm|= 0.00779
+  HOMO = -0.323411899587786  LUMO = 0.122834498018
+cycle= 46 E= -14978.7673926252  delta_E= -8.24e-07  |g|= 0.000246  |ddm|= 0.00233
+  HOMO = -0.323409540696168  LUMO = 0.122834424239548
+cycle= 47 E= -14978.7673953456  delta_E= -2.72e-06  |g|= 0.000244  |ddm|= 0.00782
+  HOMO = -0.323406724619572  LUMO = 0.122834437288261
+cycle= 48 E= -14978.7674021704  delta_E= -6.82e-06  |g|= 0.000257  |ddm|= 0.02
+  HOMO = -0.323403327564485  LUMO = 0.122834359952959
+cycle= 49 E= -14978.7674094604  delta_E= -7.29e-06  |g|= 0.000257  |ddm|= 0.022
+  HOMO = -0.323404933686783  LUMO = 0.122834505182672
+cycle= 50 E= -14978.7674064253  delta_E= 3.04e-06  |g|= 0.000482  |ddm|= 0.00932
+  HOMO = -0.323400512929328  LUMO = 0.122834374530615
+cycle= 51 E= -14978.7674153718  delta_E= -8.95e-06  |g|= 0.000237  |ddm|= 0.0271
+  HOMO = -0.323399933079896  LUMO = 0.122834469026974
+cycle= 52 E= -14978.7674184338  delta_E= -3.06e-06  |g|= 0.000449  |ddm|= 0.00975
+  HOMO = -0.323398184494746  LUMO = 0.122834358367532
+cycle= 53 E= -14978.7674218021  delta_E= -3.37e-06  |g|= 0.000229  |ddm|= 0.0107
+  HOMO = -0.323398590736858  LUMO = 0.122834377362001
+cycle= 54 E= -14978.7674215622  delta_E= 2.4e-07  |g|= 0.00028  |ddm|= 0.0014
+  HOMO = -0.323397997232148  LUMO = 0.122834347241867
+cycle= 55 E= -14978.7674226523  delta_E= -1.09e-06  |g|= 0.000254  |ddm|= 0.00346
+  HOMO = -0.323398039454928  LUMO = 0.122834360630097
+cycle= 56 E= -14978.7674230564  delta_E= -4.04e-07  |g|= 0.000265  |ddm|= 0.00129
+  HOMO = -0.323395850022989  LUMO = 0.122834275329971
+cycle= 57 E= -14978.7674266066  delta_E= -3.55e-06  |g|= 0.00024  |ddm|= 0.0114
+  HOMO = -0.323395363168026  LUMO = 0.122834349555518
+cycle= 58 E= -14978.7674296356  delta_E= -3.03e-06  |g|= 0.00034  |ddm|= 0.00993
+  HOMO = -0.323393133432047  LUMO = 0.122834148922457
+cycle= 59 E= -14978.7674337497  delta_E= -4.11e-06  |g|= 0.00022  |ddm|= 0.0137
+  HOMO = -0.323392336809103  LUMO = 0.122834143011504
+cycle= 60 E= -14978.7674369746  delta_E= -3.22e-06  |g|= 0.00025  |ddm|= 0.0109
+  HOMO = -0.323390005428389  LUMO = 0.12283400132787
+cycle= 61 E= -14978.7674410062  delta_E= -4.03e-06  |g|= 0.000213  |ddm|= 0.0139
+  HOMO = -0.323389453943205  LUMO = 0.122834002265766
+cycle= 62 E= -14978.767442188  delta_E= -1.18e-06  |g|= 0.000211  |ddm|= 0.00415
+  HOMO = -0.323387167527627  LUMO = 0.122833958243962
+cycle= 63 E= -14978.7674473773  delta_E= -5.19e-06  |g|= 0.000215  |ddm|= 0.0184
+  HOMO = -0.323382783889167  LUMO = 0.122833692566456
+cycle= 64 E= -14978.7674542884  delta_E= -6.91e-06  |g|= 0.000199  |ddm|= 0.0255
+  HOMO = -0.323381706578673  LUMO = 0.122833658315515
+cycle= 65 E= -14978.7674582403  delta_E= -3.95e-06  |g|= 0.000242  |ddm|= 0.0152
+  HOMO = -0.323382853421261  LUMO = 0.122833736362254
+cycle= 66 E= -14978.7674569647  delta_E= 1.28e-06  |g|= 0.000228  |ddm|= 0.00505
+  HOMO = -0.323380234585823  LUMO = 0.122833523506182
+cycle= 67 E= -14978.7674624214  delta_E= -5.46e-06  |g|= 0.000191  |ddm|= 0.0215
+  HOMO = -0.323377852449652  LUMO = 0.122833392287224
+cycle= 68 E= -14978.7674680265  delta_E= -5.61e-06  |g|= 0.000191  |ddm|= 0.0232
+  HOMO = -0.323374776406586  LUMO = 0.122833233729077
+cycle= 69 E= -14978.7674751638  delta_E= -7.14e-06  |g|= 0.000279  |ddm|= 0.0316
+  HOMO = -0.323374845845244  LUMO = 0.122833239177678
+cycle= 70 E= -14978.7674748222  delta_E= 3.42e-07  |g|= 0.000198  |ddm|= 0.00165
+  HOMO = -0.323374239655039  LUMO = 0.122833206890547
+cycle= 71 E= -14978.7674763402  delta_E= -1.52e-06  |g|= 0.000194  |ddm|= 0.00692
+  HOMO = -0.323373195269678  LUMO = 0.1228331540083
+cycle= 72 E= -14978.7674785831  delta_E= -2.24e-06  |g|= 0.000174  |ddm|= 0.0104
+  HOMO = -0.323371836144819  LUMO = 0.122833057915724
+cycle= 73 E= -14978.7674813439  delta_E= -2.76e-06  |g|= 0.000172  |ddm|= 0.0131
+  HOMO = -0.323372143880018  LUMO = 0.122833120419639
+cycle= 74 E= -14978.7674820428  delta_E= -6.99e-07  |g|= 0.000182  |ddm|= 0.00351
+  HOMO = -0.32336936130719  LUMO = 0.122832929468227
+cycle= 75 E= -14978.7674863334  delta_E= -4.29e-06  |g|= 0.000157  |ddm|= 0.0215
+  HOMO = -0.323368941362399  LUMO = 0.122832948078602
+cycle= 76 E= -14978.7674900627  delta_E= -3.73e-06  |g|= 0.000154  |ddm|= 0.02
+  HOMO = -0.323368732263875  LUMO = 0.122832938280067
+cycle= 77 E= -14978.7674911533  delta_E= -1.09e-06  |g|= 0.000254  |ddm|= 0.00632
+  HOMO = -0.323367249706965  LUMO = 0.122832818393153
+cycle= 78 E= -14978.7674929548  delta_E= -1.8e-06  |g|= 0.000139  |ddm|= 0.0102
+  HOMO = -0.323367118971596  LUMO = 0.122832853207297
+cycle= 79 E= -14978.7674939348  delta_E= -9.8e-07  |g|= 0.000181  |ddm|= 0.00575
+  HOMO = -0.323366153613437  LUMO = 0.122832787802577
+cycle= 80 E= -14978.7674958476  delta_E= -1.91e-06  |g|= 0.000135  |ddm|= 0.0118
+  HOMO = -0.323365914684992  LUMO = 0.122832774083678
+cycle= 81 E= -14978.7674959852  delta_E= -1.38e-07  |g|= 0.000154  |ddm|= 0.00094
+  HOMO = -0.323366397203313  LUMO = 0.122832807905556
+cycle= 82 E= -14978.7674964146  delta_E= -4.29e-07  |g|= 0.000188  |ddm|= 0.00272
+  HOMO = -0.323365409729521  LUMO = 0.122832709377197
+cycle= 83 E= -14978.7674978823  delta_E= -1.47e-06  |g|= 0.000115  |ddm|= 0.0095
+  HOMO = -0.323365280932587  LUMO = 0.12283273192352
+cycle= 84 E= -14978.7674982372  delta_E= -3.55e-07  |g|= 0.000134  |ddm|= 0.00234
+  HOMO = -0.323365352677278  LUMO = 0.122832753905933
+cycle= 85 E= -14978.7674983395  delta_E= -1.02e-07  |g|= 0.000124  |ddm|= 0.000724
+  HOMO = -0.323365035889723  LUMO = 0.122832717023332
+cycle= 86 E= -14978.7674984737  delta_E= -1.34e-07  |g|= 0.000107  |ddm|= 0.000905
+  HOMO = -0.323365507059347  LUMO = 0.122832750005205
+cycle= 87 E= -14978.7674983069  delta_E= 1.67e-07  |g|= 0.000107  |ddm|= 0.00127
+  HOMO = -0.323365376892383  LUMO = 0.122832724397635
+cycle= 88 E= -14978.7674984756  delta_E= -1.69e-07  |g|= 0.000105  |ddm|= 0.00113
+  HOMO = -0.323365310478321  LUMO = 0.122832729793647
+cycle= 89 E= -14978.7674990667  delta_E= -5.91e-07  |g|= 0.000103  |ddm|= 0.004
+  HOMO = -0.323364366407447  LUMO = 0.122832672451561
+cycle= 90 E= -14978.7675003206  delta_E= -1.25e-06  |g|= 0.0001  |ddm|= 0.00875
+  HOMO = -0.323364271676182  LUMO = 0.122832673540849
+cycle= 91 E= -14978.7675011328  delta_E= -8.12e-07  |g|= 9.82e-05  |ddm|= 0.00586
+  HOMO = -0.323363058445236  LUMO = 0.122832570218475
+cycle= 92 E= -14978.7675025005  delta_E= -1.37e-06  |g|= 9.67e-05  |ddm|= 0.0103
+  HOMO = -0.323363075963809  LUMO = 0.122832567524196
+cycle= 93 E= -14978.7675042024  delta_E= -1.7e-06  |g|= 9.42e-05  |ddm|= 0.0135
+  HOMO = -0.323362402068979  LUMO = 0.122832521761067
+cycle= 94 E= -14978.76750555  delta_E= -1.35e-06  |g|= 8.91e-05  |ddm|= 0.0113
+  HOMO = -0.323362171697356  LUMO = 0.122832510414364
+cycle= 95 E= -14978.7675064042  delta_E= -8.54e-07  |g|= 9e-05  |ddm|= 0.00762
+  HOMO = -0.32336135314954  LUMO = 0.122832460350152
+cycle= 96 E= -14978.7675078429  delta_E= -1.44e-06  |g|= 8.48e-05  |ddm|= 0.0134
+  HOMO = -0.323361039806472  LUMO = 0.122832428623018
+cycle= 97 E= -14978.7675091241  delta_E= -1.28e-06  |g|= 9.46e-05  |ddm|= 0.0131
+  HOMO = -0.32336050847192  LUMO = 0.122832416270398
+cycle= 98 E= -14978.7675099239  delta_E= -8e-07  |g|= 7.51e-05  |ddm|= 0.00847
+  HOMO = -0.323359665941663  LUMO = 0.122832340972486
+cycle= 99 E= -14978.7675113477  delta_E= -1.42e-06  |g|= 7.64e-05  |ddm|= 0.0168
+  HOMO = -0.323359942087178  LUMO = 0.122832368313117
+cycle= 100 E= -14978.7675120846  delta_E= -7.37e-07  |g|= 6.64e-05  |ddm|= 0.00954
+  HOMO = -0.323359061182336  LUMO = 0.122832300028685
+cycle= 101 E= -14978.7675128029  delta_E= -7.18e-07  |g|= 6.26e-05  |ddm|= 0.0102
+  HOMO = -0.323359463768849  LUMO = 0.122832338295311
+cycle= 102 E= -14978.7675132281  delta_E= -4.25e-07  |g|= 6.51e-05  |ddm|= 0.0064
+  HOMO = -0.323358694861314  LUMO = 0.12283225596189
+cycle= 103 E= -14978.767513887  delta_E= -6.59e-07  |g|= 6.8e-05  |ddm|= 0.0112
+  HOMO = -0.323358936119651  LUMO = 0.122832292871588
+cycle= 104 E= -14978.7675138748  delta_E= 1.22e-08  |g|= 7.04e-05  |ddm|= 0.000783
+  HOMO = -0.323358764689117  LUMO = 0.122832284933411
+cycle= 105 E= -14978.7675140693  delta_E= -1.94e-07  |g|= 5.02e-05  |ddm|= 0.00354
+  HOMO = -0.323358746135926  LUMO = 0.12283228213011
+cycle= 106 E= -14978.7675141383  delta_E= -6.9e-08  |g|= 4.7e-05  |ddm|= 0.00119
+  HOMO = -0.323358825182181  LUMO = 0.122832285186199
+cycle= 107 E= -14978.7675142  delta_E= -6.17e-08  |g|= 4.55e-05  |ddm|= 0.00106
+  HOMO = -0.323358732401372  LUMO = 0.122832270314447
+cycle= 108 E= -14978.7675142861  delta_E= -8.6e-08  |g|= 4.19e-05  |ddm|= 0.00156
+  HOMO = -0.323358726509319  LUMO = 0.122832263662797
+cycle= 109 E= -14978.7675144006  delta_E= -1.14e-07  |g|= 3.95e-05  |ddm|= 0.00217
+  HOMO = -0.323358585556139  LUMO = 0.122832266959002
+cycle= 110 E= -14978.7675144679  delta_E= -6.73e-08  |g|= 3.8e-05  |ddm|= 0.00131
+  HOMO = -0.323358599067527  LUMO = 0.122832269525104
+cycle= 111 E= -14978.7675145493  delta_E= -8.14e-08  |g|= 3.65e-05  |ddm|= 0.00164
+  HOMO = -0.323358577753936  LUMO = 0.12283226590565
+cycle= 112 E= -14978.7675146137  delta_E= -6.44e-08  |g|= 3.54e-05  |ddm|= 0.00132
+  HOMO = -0.32335856406656  LUMO = 0.122832263492573
+cycle= 113 E= -14978.7675147091  delta_E= -9.54e-08  |g|= 3.42e-05  |ddm|= 0.00202
+  HOMO = -0.323358534319191  LUMO = 0.122832251546775
+cycle= 114 E= -14978.7675147806  delta_E= -7.14e-08  |g|= 3.34e-05  |ddm|= 0.00155
+  HOMO = -0.323358514503403  LUMO = 0.122832253239742
+cycle= 115 E= -14978.7675148522  delta_E= -7.16e-08  |g|= 3.26e-05  |ddm|= 0.00159
+  HOMO = -0.323358370930029  LUMO = 0.12283225273871
+cycle= 116 E= -14978.7675149586  delta_E= -1.06e-07  |g|= 3.15e-05  |ddm|= 0.00243
+  HOMO = -0.32335844453295  LUMO = 0.122832250524608
+cycle= 117 E= -14978.7675150654  delta_E= -1.07e-07  |g|= 3.05e-05  |ddm|= 0.00253
+  HOMO = -0.323358327797402  LUMO = 0.122832240725328
+cycle= 118 E= -14978.7675151923  delta_E= -1.27e-07  |g|= 2.91e-05  |ddm|= 0.00314
+  HOMO = -0.323358327148299  LUMO = 0.122832239481976
+cycle= 119 E= -14978.7675153208  delta_E= -1.29e-07  |g|= 2.77e-05  |ddm|= 0.00336
+  HOMO = -0.323358263968577  LUMO = 0.122832230460637
+cycle= 120 E= -14978.7675155268  delta_E= -2.06e-07  |g|= 2.52e-05  |ddm|= 0.00584
+  HOMO = -0.323358086311773  LUMO = 0.1228322350065
+cycle= 121 E= -14978.7675156913  delta_E= -1.64e-07  |g|= 2.39e-05  |ddm|= 0.0052
+  HOMO = -0.323358082102574  LUMO = 0.122832226438936
+cycle= 122 E= -14978.7675158056  delta_E= -1.14e-07  |g|= 2.25e-05  |ddm|= 0.00399
+  HOMO = -0.323358121361779  LUMO = 0.122832218985721
+cycle= 123 E= -14978.767515917  delta_E= -1.11e-07  |g|= 2.09e-05  |ddm|= 0.00428
+  HOMO = -0.323358019014656  LUMO = 0.122832218914496
+cycle= 124 E= -14978.7675160063  delta_E= -8.93e-08  |g|= 2.05e-05  |ddm|= 0.00381
+  HOMO = -0.323358002903861  LUMO = 0.122832224823027
+cycle= 125 E= -14978.7675160458  delta_E= -3.95e-08  |g|= 1.93e-05  |ddm|= 0.00181
+  HOMO = -0.323358007099593  LUMO = 0.122832222977198
+cycle= 126 E= -14978.7675160974  delta_E= -5.15e-08  |g|= 1.8e-05  |ddm|= 0.00251
+  HOMO = -0.323357953663561  LUMO = 0.122832218366037
+cycle= 127 E= -14978.7675161614  delta_E= -6.4e-08  |g|= 1.62e-05  |ddm|= 0.00341
+  HOMO = -0.323357952503524  LUMO = 0.122832218675988
+cycle= 128 E= -14978.7675161991  delta_E= -3.78e-08  |g|= 1.48e-05  |ddm|= 0.00223
+  HOMO = -0.323357930457764  LUMO = 0.122832210748307
+cycle= 129 E= -14978.7675162299  delta_E= -3.08e-08  |g|= 1.39e-05  |ddm|= 0.00198
+  HOMO = -0.323357956683695  LUMO = 0.122832214426279
+cycle= 130 E= -14978.7675162574  delta_E= -2.75e-08  |g|= 1.28e-05  |ddm|= 0.0019
+  HOMO = -0.323357928482441  LUMO = 0.122832214922329
+cycle= 131 E= -14978.7675162759  delta_E= -1.85e-08  |g|= 1.13e-05  |ddm|= 0.00137
+  HOMO = -0.323357900027139  LUMO = 0.122832212007276
+cycle= 132 E= -14978.767516288  delta_E= -1.21e-08  |g|= 1.05e-05  |ddm|= 0.000956
+  HOMO = -0.323357893328545  LUMO = 0.122832214692376
+cycle= 133 E= -14978.7675162977  delta_E= -9.61e-09  |g|= 9.98e-06  |ddm|= 0.000804
+  HOMO = -0.323357877138437  LUMO = 0.122832213420821
+cycle= 134 E= -14978.7675163327  delta_E= -3.5e-08  |g|= 8.39e-06  |ddm|= 0.00333
+  HOMO = -0.323357898986255  LUMO = 0.122832211149315
+cycle= 135 E= -14978.7675163489  delta_E= -1.62e-08  |g|= 7.73e-06  |ddm|= 0.00185
+  HOMO = -0.32335789079098  LUMO = 0.122832212524521
+cycle= 136 E= -14978.7675163546  delta_E= -5.72e-09  |g|= 7.31e-06  |ddm|= 0.000715
+  HOMO = -0.323357888405518  LUMO = 0.122832212505191
+cycle= 137 E= -14978.7675163603  delta_E= -5.64e-09  |g|= 6.75e-06  |ddm|= 0.000732
+  HOMO = -0.323357884047537  LUMO = 0.122832210185942
+cycle= 138 E= -14978.7675163662  delta_E= -5.95e-09  |g|= 6.35e-06  |ddm|= 0.000839
+  HOMO = -0.323357883403731  LUMO = 0.12283221122308
+cycle= 139 E= -14978.7675163675  delta_E= -1.26e-09  |g|= 6.14e-06  |ddm|= 0.000179
+  HOMO = -0.323357884055381  LUMO = 0.122832210745876
+cycle= 140 E= -14978.7675163695  delta_E= -2.02e-09  |g|= 5.85e-06  |ddm|= 0.000293
+  HOMO = -0.323357884214441  LUMO = 0.122832211531802
+cycle= 141 E= -14978.767516371  delta_E= -1.55e-09  |g|= 5.62e-06  |ddm|= 0.000227
+  HOMO = -0.323357882878204  LUMO = 0.12283221088147
+cycle= 142 E= -14978.7675163744  delta_E= -3.38e-09  |g|= 5.15e-06  |ddm|= 0.000532
+  HOMO = -0.323357876895748  LUMO = 0.122832210577507
+cycle= 143 E= -14978.7675163793  delta_E= -4.91e-09  |g|= 4.56e-06  |ddm|= 0.000841
+  HOMO = -0.323357871174017  LUMO = 0.12283221048121
+cycle= 144 E= -14978.767516384  delta_E= -4.7e-09  |g|= 4.05e-06  |ddm|= 0.000889
+  HOMO = -0.323357872451446  LUMO = 0.122832209655882
+cycle= 145 E= -14978.7675163862  delta_E= -2.15e-09  |g|= 3.79e-06  |ddm|= 0.000447
+  HOMO = -0.323357878607646  LUMO = 0.12283221043686
+cycle= 146 E= -14978.7675163884  delta_E= -2.24e-09  |g|= 3.4e-06  |ddm|= 0.000501
+  HOMO = -0.323357874280585  LUMO = 0.122832209899793
+cycle= 147 E= -14978.7675163905  delta_E= -2.1e-09  |g|= 3.09e-06  |ddm|= 0.000493
+  HOMO = -0.323357880645448  LUMO = 0.12283221001659
+cycle= 148 E= -14978.7675163917  delta_E= -1.17e-09  |g|= 2.93e-06  |ddm|= 0.000309
+  HOMO = -0.323357876922837  LUMO = 0.122832210188399
+cycle= 149 E= -14978.7675163925  delta_E= -8.19e-10  |g|= 2.82e-06  |ddm|= 0.000222
+  HOMO = -0.323357874298615  LUMO = 0.122832209887895
+Extra cycle  E= -14978.7675163925  delta_E= -7.28e-12  |g|= 2.79e-06  |ddm|= 3.08e-06
+converged SCF energy = -14978.7675163925  <S^2> = 8.2691414  2S+1 = 5.8375136
+(3, 198, 198) 198
+S vector [ 2.3832+0.j -0.    +0.j  0.0053-0.j]
+(3, 198, 198) 198
+L vector [ 5.1165+0.j -0.    -0.j  0.011 -0.j]
+(3, 198, 198) 198
+J vector [ 7.4997+0.j -0.    -0.j  0.0163-0.j]
+Tue Apr 15 10:57:36 PDT 2025

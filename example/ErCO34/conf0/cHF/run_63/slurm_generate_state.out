@@ -1,0 +1,1311 @@
+Currently Loaded Modulefiles:
+ 1) gmp/6.2.1-gcc-13.2.0-lcnhyse <aL>             
+ 2) mpfr/4.2.0-gcc-13.2.0-yy2fkq5 <aL>            
+ 3) mpc/1.3.1-gcc-13.2.0-5kgoftq <aL>             
+ 4) zlib-ng/2.1.3-gcc-13.2.0-jetnfwa <aL>         
+ 5) zstd/1.5.5-gcc-13.2.0-t2lua3l <aL>            
+ 6) gcc/13.2.0-gcc-13.2.0-w55nxkl                 
+ 7) cmake/3.20.2-gcc-13.2.0-rp74vpv               
+ 8) libfabric/1.18.1-gcc-13.2.0-bijxar4 <aL>      
+ 9) numactl/2.0.14-gcc-13.2.0-etkf74e <aL>        
+10) openssh/8.7p1-gcc-13.2.0-g55xmkx <aL>         
+11) slurm/22.05.6-gcc-13.2.0-tchsn6y <aL>         
+12) openmpi/4.1.5-gcc-13.2.0-24q3ap2              
+13) libpciaccess/0.17-gcc-13.2.0-r2cijnn <aL>     
+14) libiconv/1.17-gcc-13.2.0-ntov4te <aL>         
+15) xz/5.4.1-gcc-13.2.0-4xkm5xo <aL>              
+16) libxml2/2.10.3-gcc-13.2.0-fr6jcjz <aL>        
+17) ncurses/6.4-gcc-13.2.0-4o2yj6n <aL>           
+18) hwloc/2.9.1-gcc-13.2.0-gzvfolk <aL>           
+19) intel-tbb/2021.9.0-gcc-13.2.0-6nwk3ml <aL>    
+20) intel-oneapi-mkl/2023.2.0-gcc-13.2.0-ohvyk7g  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+/central/groups/changroup/members/lppeng/holmium/run/paper_final/run_ErCO34/conf2/cHF
+Tue Apr 15 21:53:57 PDT 2025
+hpc-91-11.cm.cluster
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   hpc-91-11
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Apr 15 21:53:59 ####### 
+                ####### libDMET   version 0.5
+                ####### A periodic DMET library for lattice model and realistic solid.
+                ####### 
+#INFO: **** input file is /central/groups/changroup/members/lppeng/holmium/run/paper_final/run_ErCO34/conf2/cHF/run_63/generate_state.py ****
+'''
+Example input to calculate the ground state of a molecular system
+Include x2c relativistic effect
+'''
+import pyscf
+from pyscf.scf.hf import RHF
+from pyscf.dft.uks import UKS
+from pyscf.dft.gks import GKS
+from pyscf import lib
+import os, sys
+import numpy as np
+import scipy.linalg as la
+from scipy.linalg import sqrtm, eigh
+from scipy.optimize import root
+np.set_printoptions(precision=12, threshold=sys.maxsize, linewidth=190, suppress=True)
+log = lib.logger.Logger(sys.stdout, 4)
+
+if __name__ == "__main__":
+    from pyscf import gto, scf, dft, lib
+    from pyscf.lib import chkfile
+    from stevens import cdft, utils
+    from stevens.project import get_mj
+
+    # system input
+    geometry = 'ErCO34' # The name of geometry file minus ".xyz"
+                       # Make sure first atom is the central magnetic atom 
+    spin = 3 # number of unpaired electrons in a unit cell
+    charge = -5 # charge of the molecule or a unit cell
+    basis = {'default': '631g', 'Er': 'sarc-dkh'} # specify basis for all elements here
+    max_memory = 40000 # in the unit of MB. Recommend: memory available on a node - 10000 MB
+    qmmm = True # add environment with classical charges
+
+    # (c)HF/DFT parameters
+    xc = 'HF' # functional
+    smearing = None # To help HF/DFT converge, try e.g. 5e-2
+    chkfname_guess = '../../gs_%s.chk'%geometry # initial guess. 'minao' for default PySCF guess; None for constrained HF; 
+                # path to a checkpoint file to restart from a SCF solution.
+                # 'project' to project from the SCF solution in a small basis to generate the initial guess
+    chkfname_small = '../gs_small_%s.chk'%geometry # checkpoint file in a small basis. Used when chkfname_guess == 'project'
+    basis_small = {'default': 'minao', 'Er': 'cc-x2c-minao'}# the small basis associated with chkfname_small
+    change_dm_mode = 'rotate' # None: no change
+                          # 'positive_z': set the 4f block of dm so that J~(0,0,J)
+                          # 'rotate': rotate the 4f block of dm by some angles
+    atom_index = 0 # the index of central lanthanide atom
+    noise = 0 # max noise on density matrix initial guess
+
+    # constrained HF parameters for the initial guess
+    ao_shell = 'f'
+    lo_chkfname = '../../UHF/uhf_gs_%s_lo.h5'%geometry  
+    multiplier0 = 0.1
+    dir_idx = 63
+    plane = 'random'
+    # END USER INPUT
+
+    # set up system
+    if os.path.isfile('../../' + geometry + ".xyz"):
+        mol = gto.M(
+            atom = '../../' + geometry + ".xyz",
+            basis = basis,
+            verbose = 4,
+            spin = spin,
+            charge = charge,
+            max_memory = max_memory,
+            )
+        mol.set_common_origin(mol._atom[atom_index][1])
+    else:
+        raise ValueError("No .xyz file available!")
+    log.info("N_elec %s, N_ao %s"%(mol.nelec, mol.nao))
+
+    # generate HF/DFT initial guess
+    if chkfname_guess == 'minao':
+        mf = scf.GKS(mol).x2c()
+        dm0 = mf.get_init_guess()
+        print("Use PySCF default init guess")
+    elif chkfname_guess == 'project':
+        # project dm0 in a small basis to the larger basis 
+        dm0 = utils.project_dm_from_small_basis(mol, basis_small, chkfname_small, change_dm_mode, atom_index=atom_index,
+                occ_idx=0)
+        print("Project wavefunction in a smaller basis to the target basis as init guess")
+    else:
+        mf = scf.GKS(mol).x2c()
+        data = chkfile.load(chkfname_guess, 'scf')
+        mf.__dict__.update(data)
+        dm0 = mf.make_rdm1()
+        mf.analyze(with_meta_lowdin=False)
+        print("Load .chk file for init guess")
+    angles_from_z, direction = cdft.sample_rotation(plane, dir_idx, dir_init=(0,0,1), unit=20, return_direction=True) # the rotation angles from +z
+    if change_dm_mode is not None:  
+        dm0  = utils.change_dm_guess(mol, dm0, change_dm_mode, atom_index=atom_index, angles_from_z=angles_from_z)
+    dm0 += (np.random.rand(*(dm0.shape)) - 0.5) * noise  
+    print("J vector of initial guess", get_mj(mol, dm0, analyze=True))
+    print("target direction", direction)
+
+    # run constrained HF/DFT
+    cmf = cdft.CGKS(mol, direction, multiplier_guess=multiplier0, max_cycle=500,
+            atom_index=0, ao_shell=ao_shell, lo_chkfname=lo_chkfname, xc=xc, smearing=smearing)
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        mf = cmf._scf
+        get_hcore_original = mf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        mf.get_hcore = types.MethodType(get_hcore_mm, mf)
+        cmf._scf = mf
+    cmf.kernel(dm0=dm0)
+
+    # calculate DFT energy
+    dm = cmf._scf.make_rdm1()
+    gmf = scf.GKS(mol).x2c()
+    if xc.upper() != 'HF':
+        gmf.grids.level = 6
+        gmf.collinear = 'mcol'
+    gmf.xc = xc
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = gmf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        gmf.get_hcore = types.MethodType(get_hcore_mm, gmf)
+    print("energy with functional %s"%gmf.xc, gmf.energy_tot(dm=dm))
+    gmf = scf.GKS(mol).x2c()
+    gmf.grids.level = 6
+    gmf.collinear = 'mcol'
+    gmf.xc = 'PBE0'
+    if qmmm: # add the precomputed potential from environmental classical charges 
+        get_hcore_original = gmf.get_hcore
+        hcore_mm = np.load('../../mm_hcore.npy')
+        def get_hcore_mm(self, mol=None):
+            return get_hcore_original(mol=mol) + la.block_diag(hcore_mm, hcore_mm)
+        import types
+        gmf.get_hcore = types.MethodType(get_hcore_mm, gmf)
+    print("energy with functional %s"%gmf.xc, gmf.energy_tot(dm=dm))
+
+    print("S vector", get_mj(mol, dm, include_L=False))
+    print("L vector", get_mj(mol, dm, include_S=False))
+    print("J vector", get_mj(mol, dm))
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='hpc-91-11.cm.cluster', release='5.14.0-362.24.1.el9_3.x86_64', version='#1 SMP PREEMPT_DYNAMIC Thu Feb 15 07:18:13 EST 2024', machine='x86_64')  Threads 8
+Python 3.11.6 | packaged by conda-forge | (main, Oct  3 2023, 10:40:35) [GCC 12.3.0]
+numpy 1.26.0  scipy 1.11.3
+Date: Tue Apr 15 21:54:00 2025
+PySCF version 2.5.0
+PySCF path  /home/lppeng/anaconda3/envs/nerscV25/lib/python3.11/site-packages/pyscf
+
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 17
+[INPUT] num. electrons = 193
+[INPUT] charge = -5
+[INPUT] spin (= nelec alpha-beta = 2S) = 3
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = angstrom
+[INPUT] Symbol           X                Y                Z      unit          X                Y                Z       unit  Magmom
+[INPUT]  1 Er     0.983621000000  15.502244000000  16.207915000000 AA    1.858774300371  29.294995476182  30.628520400230 Bohr   0.0
+[INPUT]  2 O      1.999162000000  14.046589000000  17.748158000000 AA    3.777868658638  26.544206194328  33.539157835508 Bohr   0.0
+[INPUT]  3 O      0.849859000000  13.239725000000  19.509454000000 AA    1.606000754497  25.019454214557  36.867524899800 Bohr   0.0
+[INPUT]  4 O     -0.191063000000  14.330252000000  17.844156000000 AA   -0.361056742538  27.080251576001  33.720567764014 Bohr   0.0
+[INPUT]  5 O      0.075398000000  13.922617000000  14.734947000000 AA    0.142481570340  26.309933067214  27.845014289982 Bohr   0.0
+[INPUT]  6 O      1.310036000000  13.048514000000  13.067690000000 AA    2.475609253321  24.658117792553  24.694355180718 Bohr   0.0
+[INPUT]  7 O      2.203594000000  14.429009000000  14.574295000000 AA    4.164189149735  27.266875258884  27.541426008618 Bohr   0.0
+[INPUT]  8 O     -1.142155000000  16.458779000000  15.996655000000 AA   -2.158360141803  31.102584654743  30.229296859154 Bohr   0.0
+[INPUT]  9 O      0.436800000000  17.108053000000  14.609560000000 AA    0.825432371210  32.329534694544  27.608067200401 Bohr   0.0
+[INPUT] 10 O      1.479297000000  17.162683000000  17.755992000000 AA    2.795466186891  32.432770432729  33.553961949968 Bohr   0.0
+[INPUT] 11 O      3.574079000000  17.921221000000  18.087093000000 AA    6.754030457559  33.866199507804  34.179652159538 Bohr   0.0
+[INPUT] 12 O      3.086741000000  16.549131000000  16.376735000000 AA    5.833095107466  31.273325189550  30.947543964579 Bohr   0.0
+[INPUT] 13 C      0.893280000000  13.851177000000  18.394684000000 AA    1.688054552551  26.174931032875  34.760914907919 Bohr   0.0
+[INPUT] 14 C      1.209619000000  13.783938000000  14.098216000000 AA    2.285848625070  26.047867737985  26.641767084961 Bohr   0.0
+[INPUT] 15 C     -0.820004000000  17.160582000000  14.960252000000 AA   -1.549582981048  32.428800118141  28.270779034477 Bohr   0.0
+[INPUT] 16 C      2.757666000000  17.225719000000  17.422934000000 AA    5.211233483025  32.551891208717  32.924573546373 Bohr   0.0
+[INPUT] 17 O     -1.665533000000  17.832969000000  14.307847000000 AA   -3.147401221425  33.699427397859  27.037912262180 Bohr   0.0
+
+nuclear repulsion = 2660.00686642269
+number of shells = 122
+number of NR pGTOs = 525
+number of NR cGTOs = 264
+basis = {'default': '631g', 'Er': 'sarc-dkh'}
+ecp = {}
+CPU time:         1.80
+N_elec (98, 95), N_ao 264
+**** MO energy ****
+MO #1   energy= -2122.67989232545  occ= 1
+MO #2   energy= -2122.67981424425  occ= 1
+MO #3   energy= -361.386854464654  occ= 1
+MO #4   energy= -361.386214438664  occ= 1
+MO #5   energy= -343.310167675766  occ= 1
+MO #6   energy= -343.310135816546  occ= 1
+MO #7   energy= -309.245895952722  occ= 1
+MO #8   energy= -309.245034971919  occ= 1
+MO #9   energy= -309.242007619742  occ= 1
+MO #10  energy= -309.241702243369  occ= 1
+MO #11  energy= -83.0816501052375  occ= 1
+MO #12  energy= -83.0021275293011  occ= 1
+MO #13  energy= -75.1984258999613  occ= 1
+MO #14  energy= -75.1788237145657  occ= 1
+MO #15  energy= -67.8561378551306  occ= 1
+MO #16  energy= -67.8145301841852  occ= 1
+MO #17  energy= -67.766720236756   occ= 1
+MO #18  energy= -67.7169829269948  occ= 1
+MO #19  energy= -54.8569236272494  occ= 1
+MO #20  energy= -54.8469752201952  occ= 1
+MO #21  energy= -54.835393238737   occ= 1
+MO #22  energy= -54.8308912337091  occ= 1
+MO #23  energy= -53.0402534950709  occ= 1
+MO #24  energy= -53.0199455857103  occ= 1
+MO #25  energy= -52.9973678013463  occ= 1
+MO #26  energy= -52.9583713959571  occ= 1
+MO #27  energy= -52.8852653483585  occ= 1
+MO #28  energy= -52.8594796659845  occ= 1
+MO #29  energy= -20.2082987969289  occ= 1
+MO #30  energy= -20.2081604536949  occ= 1
+MO #31  energy= -20.2048825278899  occ= 1
+MO #32  energy= -20.2048749000004  occ= 1
+MO #33  energy= -20.2012535134494  occ= 1
+MO #34  energy= -20.2011118598385  occ= 1
+MO #35  energy= -20.1968395801629  occ= 1
+MO #36  energy= -20.1968303561807  occ= 1
+MO #37  energy= -20.195488721734   occ= 1
+MO #38  energy= -20.1953170995107  occ= 1
+MO #39  energy= -20.1901358608837  occ= 1
+MO #40  energy= -20.1899559733963  occ= 1
+MO #41  energy= -20.1545188978296  occ= 1
+MO #42  energy= -20.1543280844198  occ= 1
+MO #43  energy= -20.1523361585354  occ= 1
+MO #44  energy= -20.1521500145465  occ= 1
+MO #45  energy= -20.1487473711567  occ= 1
+MO #46  energy= -20.1485597533147  occ= 1
+MO #47  energy= -20.1453100854978  occ= 1
+MO #48  energy= -20.1451085200234  occ= 1
+MO #49  energy= -20.139182775871   occ= 1
+MO #50  energy= -20.1391737532354  occ= 1
+MO #51  energy= -20.1319628473727  occ= 1
+MO #52  energy= -20.1319523840126  occ= 1
+MO #53  energy= -17.400332300783   occ= 1
+MO #54  energy= -17.1983829167546  occ= 1
+MO #55  energy= -14.1619773113982  occ= 1
+MO #56  energy= -14.1009928358631  occ= 1
+MO #57  energy= -12.5227841939611  occ= 1
+MO #58  energy= -12.4415258984979  occ= 1
+MO #59  energy= -12.3244559366676  occ= 1
+MO #60  energy= -12.1973953362469  occ= 1
+MO #61  energy= -11.073454881425   occ= 1
+MO #62  energy= -11.0734329915114  occ= 1
+MO #63  energy= -11.0670938566163  occ= 1
+MO #64  energy= -11.0670710732628  occ= 1
+MO #65  energy= -11.0161670909012  occ= 1
+MO #66  energy= -11.0161416448054  occ= 1
+MO #67  energy= -11.0117279516552  occ= 1
+MO #68  energy= -11.0117021377603  occ= 1
+MO #69  energy= -7.28560468736167  occ= 1
+MO #70  energy= -7.23722324890258  occ= 1
+MO #71  energy= -7.22295874390457  occ= 1
+MO #72  energy= -7.20264287305748  occ= 1
+MO #73  energy= -6.94563420975213  occ= 1
+MO #74  energy= -6.90000031323739  occ= 1
+MO #75  energy= -6.83972631526606  occ= 1
+MO #76  energy= -6.70712225542414  occ= 1
+MO #77  energy= -6.47062047185486  occ= 1
+MO #78  energy= -6.40406215127664  occ= 1
+MO #79  energy= -2.1010910416863   occ= 1
+MO #80  energy= -2.03003962720743  occ= 1
+MO #81  energy= -1.13080993404581  occ= 1
+MO #82  energy= -1.1242546931178   occ= 1
+MO #83  energy= -1.11092001014279  occ= 1
+MO #84  energy= -1.11075545995446  occ= 1
+MO #85  energy= -1.09300928034407  occ= 1
+MO #86  energy= -1.08345365558297  occ= 1
+MO #87  energy= -1.05691158846464  occ= 1
+MO #88  energy= -1.05586579266464  occ= 1
+MO #89  energy= -1.04395281339899  occ= 1
+MO #90  energy= -1.0403341445443   occ= 1
+MO #91  energy= -0.97031222409199  occ= 1
+MO #92  energy= -0.969555247204612 occ= 1
+MO #93  energy= -0.964639167872326 occ= 1
+MO #94  energy= -0.961947679081295 occ= 1
+MO #95  energy= -0.948171293370563 occ= 1
+MO #96  energy= -0.947299604554163 occ= 1
+MO #97  energy= -0.944484577306701 occ= 1
+MO #98  energy= -0.943984045639487 occ= 1
+MO #99  energy= -0.91700705931738  occ= 1
+MO #100 energy= -0.912462542547752 occ= 1
+MO #101 energy= -0.907895550160275 occ= 1
+MO #102 energy= -0.905382396941607 occ= 1
+MO #103 energy= -0.896748465979189 occ= 1
+MO #104 energy= -0.895705422929369 occ= 1
+MO #105 energy= -0.891790722084464 occ= 1
+MO #106 energy= -0.891213881128757 occ= 1
+MO #107 energy= -0.850316565144829 occ= 1
+MO #108 energy= -0.834323959203897 occ= 1
+MO #109 energy= -0.812195266203041 occ= 1
+MO #110 energy= -0.793693515731961 occ= 1
+MO #111 energy= -0.463765424409797 occ= 1
+MO #112 energy= -0.441370081246705 occ= 1
+MO #113 energy= -0.417896089625025 occ= 1
+MO #114 energy= -0.414477418307887 occ= 1
+MO #115 energy= -0.405342849340312 occ= 1
+MO #116 energy= -0.404144498314994 occ= 1
+MO #117 energy= -0.391890027447048 occ= 1
+MO #118 energy= -0.39070622804695  occ= 1
+MO #119 energy= -0.389249408536603 occ= 1
+MO #120 energy= -0.382578056310243 occ= 1
+MO #121 energy= -0.380272291308828 occ= 1
+MO #122 energy= -0.367715707961257 occ= 1
+MO #123 energy= -0.341212426592203 occ= 1
+MO #124 energy= -0.332917366876411 occ= 1
+MO #125 energy= -0.332720668325279 occ= 1
+MO #126 energy= -0.327190056066644 occ= 1
+MO #127 energy= -0.326954441824067 occ= 1
+MO #128 energy= -0.308230727812937 occ= 1
+MO #129 energy= -0.307674040144003 occ= 1
+MO #130 energy= -0.306366479562645 occ= 1
+MO #131 energy= -0.305532466947014 occ= 1
+MO #132 energy= -0.302620310030361 occ= 1
+MO #133 energy= -0.302392370213839 occ= 1
+MO #134 energy= -0.29918895510606  occ= 1
+MO #135 energy= -0.298852779479239 occ= 1
+MO #136 energy= -0.287965298931641 occ= 1
+MO #137 energy= -0.287723069890053 occ= 1
+MO #138 energy= -0.279950413045211 occ= 1
+MO #139 energy= -0.278928661030551 occ= 1
+MO #140 energy= -0.260865648222078 occ= 1
+MO #141 energy= -0.252879612212444 occ= 1
+MO #142 energy= -0.252272008893144 occ= 1
+MO #143 energy= -0.251481355310126 occ= 1
+MO #144 energy= -0.249150578453541 occ= 1
+MO #145 energy= -0.246603220888173 occ= 1
+MO #146 energy= -0.243235633916205 occ= 1
+MO #147 energy= -0.242348537136563 occ= 1
+MO #148 energy= -0.239688377064252 occ= 1
+MO #149 energy= -0.238534349294591 occ= 1
+MO #150 energy= -0.228456375787716 occ= 1
+MO #151 energy= -0.228065582072431 occ= 1
+MO #152 energy= -0.220801253732721 occ= 1
+MO #153 energy= -0.220764353026447 occ= 1
+MO #154 energy= -0.148963969433683 occ= 1
+MO #155 energy= -0.148257364415683 occ= 1
+MO #156 energy= -0.133479563741227 occ= 1
+MO #157 energy= -0.132797488220078 occ= 1
+MO #158 energy= -0.119033234392518 occ= 1
+MO #159 energy= -0.11884530881314  occ= 1
+MO #160 energy= -0.112713777656084 occ= 1
+MO #161 energy= -0.112520910351931 occ= 1
+MO #162 energy= -0.100986501817764 occ= 1
+MO #163 energy= -0.100896638414573 occ= 1
+MO #164 energy= -0.09690144704505  occ= 1
+MO #165 energy= -0.0968053432580205 occ= 1
+MO #166 energy= -0.0897748083806905 occ= 1
+MO #167 energy= -0.0894236674037867 occ= 1
+MO #168 energy= -0.08410729169647  occ= 1
+MO #169 energy= -0.0837690576827995 occ= 1
+MO #170 energy= -0.0829648875260317 occ= 1
+MO #171 energy= -0.0826993510050913 occ= 1
+MO #172 energy= -0.07912627631679  occ= 1
+MO #173 energy= -0.0788699508258564 occ= 1
+MO #174 energy= -0.074313822381175 occ= 1
+MO #175 energy= -0.0738115196188374 occ= 1
+MO #176 energy= -0.0722619590855037 occ= 1
+MO #177 energy= -0.0718173943060579 occ= 1
+MO #178 energy= -0.0589556165529301 occ= 1
+MO #179 energy= -0.0584067888046744 occ= 1
+MO #180 energy= -0.054472626086161 occ= 1
+MO #181 energy= -0.0543827289227356 occ= 1
+MO #182 energy= -0.0437381719285452 occ= 1
+MO #183 energy= -0.0434127460749783 occ= 1
+MO #184 energy= -0.0417953321523654 occ= 1
+MO #185 energy= -0.0415166075601797 occ= 1
+MO #186 energy= -0.0302434114006571 occ= 1
+MO #187 energy= -0.0301227617917783 occ= 1
+MO #188 energy= -0.0217803154557914 occ= 1
+MO #189 energy= -0.02158494775046  occ= 1
+MO #190 energy= -0.0188991036007616 occ= 1
+MO #191 energy= -0.0183346296200939 occ= 1
+MO #192 energy= -0.014772857547147 occ= 1
+MO #193 energy= -0.0143815294384353 occ= 1
+MO #194 energy= 0.259529866526415  occ= 0
+MO #195 energy= 0.259532258791082  occ= 0
+MO #196 energy= 0.272807639428351  occ= 0
+MO #197 energy= 0.272808788852677  occ= 0
+MO #198 energy= 0.290435349185924  occ= 0
+MO #199 energy= 0.290442521786492  occ= 0
+MO #200 energy= 0.294513379081113  occ= 0
+MO #201 energy= 0.294516526002147  occ= 0
+MO #202 energy= 0.306669201241832  occ= 0
+MO #203 energy= 0.306678112682866  occ= 0
+MO #204 energy= 0.309727220687487  occ= 0
+MO #205 energy= 0.309732712674003  occ= 0
+MO #206 energy= 0.329385675147082  occ= 0
+MO #207 energy= 0.329390819561549  occ= 0
+MO #208 energy= 0.371760379642007  occ= 0
+MO #209 energy= 0.371769784337231  occ= 0
+MO #210 energy= 0.381475943639402  occ= 0
+MO #211 energy= 0.381489925185441  occ= 0
+MO #212 energy= 0.552734581387502  occ= 0
+MO #213 energy= 0.553046090291932  occ= 0
+MO #214 energy= 0.556800994565911  occ= 0
+MO #215 energy= 0.556964009729923  occ= 0
+MO #216 energy= 0.574680380542131  occ= 0
+MO #217 energy= 0.574827250640457  occ= 0
+MO #218 energy= 0.581855944819712  occ= 0
+MO #219 energy= 0.582319227169605  occ= 0
+MO #220 energy= 0.585520494201212  occ= 0
+MO #221 energy= 0.586096946050781  occ= 0
+MO #222 energy= 0.592223266496297  occ= 0
+MO #223 energy= 0.592570008299619  occ= 0
+MO #224 energy= 0.606722065970366  occ= 0
+MO #225 energy= 0.606796747231721  occ= 0
+MO #226 energy= 0.617725043367265  occ= 0
+MO #227 energy= 0.621474654311242  occ= 0
+MO #228 energy= 0.634766959986434  occ= 0
+MO #229 energy= 0.635852305312013  occ= 0
+MO #230 energy= 0.640767174737949  occ= 0
+MO #231 energy= 0.642193332192348  occ= 0
+MO #232 energy= 0.651617450684599  occ= 0
+MO #233 energy= 0.651809173461534  occ= 0
+MO #234 energy= 0.655538000819128  occ= 0
+MO #235 energy= 0.656058073061805  occ= 0
+MO #236 energy= 0.661746054067454  occ= 0
+MO #237 energy= 0.663773576240189  occ= 0
+MO #238 energy= 0.665743920091143  occ= 0
+MO #239 energy= 0.66830196127544   occ= 0
+MO #240 energy= 0.691863222272373  occ= 0
+MO #241 energy= 0.695849659870904  occ= 0
+MO #242 energy= 0.701774910976982  occ= 0
+MO #243 energy= 0.7107647419988    occ= 0
+MO #244 energy= 0.714126424371305  occ= 0
+MO #245 energy= 0.733468748248193  occ= 0
+MO #246 energy= 0.760192369436445  occ= 0
+MO #247 energy= 0.780673645887334  occ= 0
+MO #248 energy= 0.860290744574827  occ= 0
+MO #249 energy= 0.860669228089945  occ= 0
+MO #250 energy= 0.86567508600354   occ= 0
+MO #251 energy= 0.866911441735727  occ= 0
+MO #252 energy= 0.876009123715816  occ= 0
+MO #253 energy= 0.876573091654272  occ= 0
+MO #254 energy= 0.896252561311229  occ= 0
+MO #255 energy= 0.90936037155383   occ= 0
+MO #256 energy= 0.912215179557309  occ= 0
+MO #257 energy= 0.92008315389513   occ= 0
+MO #258 energy= 0.926776568620553  occ= 0
+MO #259 energy= 0.928778117408052  occ= 0
+MO #260 energy= 0.932782977210836  occ= 0
+MO #261 energy= 0.936877930766976  occ= 0
+MO #262 energy= 0.945269405888176  occ= 0
+MO #263 energy= 0.947515541628139  occ= 0
+MO #264 energy= 0.953436789657749  occ= 0
+MO #265 energy= 0.95425644997623   occ= 0
+MO #266 energy= 0.967408313735469  occ= 0
+MO #267 energy= 0.973688879492695  occ= 0
+MO #268 energy= 0.977632024990237  occ= 0
+MO #269 energy= 0.98789685468201   occ= 0
+MO #270 energy= 0.990875319801472  occ= 0
+MO #271 energy= 0.99368350012339   occ= 0
+MO #272 energy= 0.997250181716454  occ= 0
+MO #273 energy= 1.00387225639397   occ= 0
+MO #274 energy= 1.00714814589998   occ= 0
+MO #275 energy= 1.03171138334927   occ= 0
+MO #276 energy= 1.03375698952928   occ= 0
+MO #277 energy= 1.04280176306306   occ= 0
+MO #278 energy= 1.04531363853583   occ= 0
+MO #279 energy= 1.04785900864902   occ= 0
+MO #280 energy= 1.04930151260732   occ= 0
+MO #281 energy= 1.07868724956217   occ= 0
+MO #282 energy= 1.08160652811297   occ= 0
+MO #283 energy= 1.08797284644026   occ= 0
+MO #284 energy= 1.08996358433354   occ= 0
+MO #285 energy= 1.09351174363643   occ= 0
+MO #286 energy= 1.09461893679114   occ= 0
+MO #287 energy= 1.09677008983625   occ= 0
+MO #288 energy= 1.10305289874607   occ= 0
+MO #289 energy= 1.11553015017768   occ= 0
+MO #290 energy= 1.13095796085174   occ= 0
+MO #291 energy= 1.15764481663736   occ= 0
+MO #292 energy= 1.16419694307181   occ= 0
+MO #293 energy= 1.17151494560758   occ= 0
+MO #294 energy= 1.17503900359028   occ= 0
+MO #295 energy= 1.19564251925759   occ= 0
+MO #296 energy= 1.19809668940648   occ= 0
+MO #297 energy= 1.21039385559466   occ= 0
+MO #298 energy= 1.21325550326987   occ= 0
+MO #299 energy= 1.22000135689778   occ= 0
+MO #300 energy= 1.22238107970968   occ= 0
+MO #301 energy= 1.2305587093238    occ= 0
+MO #302 energy= 1.23495021800947   occ= 0
+MO #303 energy= 1.25290448136438   occ= 0
+MO #304 energy= 1.25959431893304   occ= 0
+MO #305 energy= 1.26257394363197   occ= 0
+MO #306 energy= 1.26734022987673   occ= 0
+MO #307 energy= 1.27521064365947   occ= 0
+MO #308 energy= 1.27737783328974   occ= 0
+MO #309 energy= 1.28788881806518   occ= 0
+MO #310 energy= 1.29372950710891   occ= 0
+MO #311 energy= 1.29728914814187   occ= 0
+MO #312 energy= 1.29898517482726   occ= 0
+MO #313 energy= 1.30806610375019   occ= 0
+MO #314 energy= 1.31124854076106   occ= 0
+MO #315 energy= 1.32979604003616   occ= 0
+MO #316 energy= 1.33224455440806   occ= 0
+MO #317 energy= 1.34582693140722   occ= 0
+MO #318 energy= 1.34616906774963   occ= 0
+MO #319 energy= 1.37555187920079   occ= 0
+MO #320 energy= 1.38408496276082   occ= 0
+MO #321 energy= 1.39718360737165   occ= 0
+MO #322 energy= 1.40651163412409   occ= 0
+MO #323 energy= 1.45333090483985   occ= 0
+MO #324 energy= 1.46158540905546   occ= 0
+MO #325 energy= 1.47395248308695   occ= 0
+MO #326 energy= 1.48272825578198   occ= 0
+MO #327 energy= 1.49148746989179   occ= 0
+MO #328 energy= 1.50030172457563   occ= 0
+MO #329 energy= 1.52469488641434   occ= 0
+MO #330 energy= 1.52753822360348   occ= 0
+MO #331 energy= 1.56094660701873   occ= 0
+MO #332 energy= 1.56185267540994   occ= 0
+MO #333 energy= 1.57793591609826   occ= 0
+MO #334 energy= 1.57905769928442   occ= 0
+MO #335 energy= 1.58244286384448   occ= 0
+MO #336 energy= 1.58396163503938   occ= 0
+MO #337 energy= 1.5989413760032    occ= 0
+MO #338 energy= 1.60038678629649   occ= 0
+MO #339 energy= 1.62445880301684   occ= 0
+MO #340 energy= 1.62556545316839   occ= 0
+MO #341 energy= 1.62878452321478   occ= 0
+MO #342 energy= 1.63544797226183   occ= 0
+MO #343 energy= 1.64517330544633   occ= 0
+MO #344 energy= 1.64719685098763   occ= 0
+MO #345 energy= 1.66301102694384   occ= 0
+MO #346 energy= 1.66483965978415   occ= 0
+MO #347 energy= 1.66911695688635   occ= 0
+MO #348 energy= 1.66964828995141   occ= 0
+MO #349 energy= 1.67512091393992   occ= 0
+MO #350 energy= 1.67563612947767   occ= 0
+MO #351 energy= 1.68231685926679   occ= 0
+MO #352 energy= 1.68287615017635   occ= 0
+MO #353 energy= 1.69200189267248   occ= 0
+MO #354 energy= 1.69254726808236   occ= 0
+MO #355 energy= 1.69504470781588   occ= 0
+MO #356 energy= 1.69755015014923   occ= 0
+MO #357 energy= 1.70102608578453   occ= 0
+MO #358 energy= 1.70252942271259   occ= 0
+MO #359 energy= 1.70739396716652   occ= 0
+MO #360 energy= 1.70890332272084   occ= 0
+MO #361 energy= 1.71188683341379   occ= 0
+MO #362 energy= 1.71401226729282   occ= 0
+MO #363 energy= 1.72552266772026   occ= 0
+MO #364 energy= 1.7268520721749    occ= 0
+MO #365 energy= 1.73941426093848   occ= 0
+MO #366 energy= 1.7412716520638    occ= 0
+MO #367 energy= 1.75802009229557   occ= 0
+MO #368 energy= 1.75959844315849   occ= 0
+MO #369 energy= 1.76485259752501   occ= 0
+MO #370 energy= 1.76660207634427   occ= 0
+MO #371 energy= 1.77441816783226   occ= 0
+MO #372 energy= 1.77641296006685   occ= 0
+MO #373 energy= 1.78127279072156   occ= 0
+MO #374 energy= 1.78150028517933   occ= 0
+MO #375 energy= 1.79072368375525   occ= 0
+MO #376 energy= 1.79088078272485   occ= 0
+MO #377 energy= 1.80472127851459   occ= 0
+MO #378 energy= 1.80478889194483   occ= 0
+MO #379 energy= 1.83109588493199   occ= 0
+MO #380 energy= 1.83560732208858   occ= 0
+MO #381 energy= 1.84904915678764   occ= 0
+MO #382 energy= 1.85147906525436   occ= 0
+MO #383 energy= 1.85787826293016   occ= 0
+MO #384 energy= 1.86329240383619   occ= 0
+MO #385 energy= 1.86828729271796   occ= 0
+MO #386 energy= 1.87042922681333   occ= 0
+MO #387 energy= 1.87597073058315   occ= 0
+MO #388 energy= 1.87697704154439   occ= 0
+MO #389 energy= 1.88546887955138   occ= 0
+MO #390 energy= 1.8889543031248    occ= 0
+MO #391 energy= 1.92979646078611   occ= 0
+MO #392 energy= 1.93092335596585   occ= 0
+MO #393 energy= 1.93304106061814   occ= 0
+MO #394 energy= 1.94089352455664   occ= 0
+MO #395 energy= 1.98844429777883   occ= 0
+MO #396 energy= 1.99010960301663   occ= 0
+MO #397 energy= 2.01453111300682   occ= 0
+MO #398 energy= 2.01727808744718   occ= 0
+MO #399 energy= 2.03940977632181   occ= 0
+MO #400 energy= 2.04398285573821   occ= 0
+MO #401 energy= 2.05893358971483   occ= 0
+MO #402 energy= 2.07120755523083   occ= 0
+MO #403 energy= 2.08568999713054   occ= 0
+MO #404 energy= 2.09263386574639   occ= 0
+MO #405 energy= 2.0990955410137    occ= 0
+MO #406 energy= 2.11482818508577   occ= 0
+MO #407 energy= 2.12880705411503   occ= 0
+MO #408 energy= 2.13853203548647   occ= 0
+MO #409 energy= 2.1428299452331    occ= 0
+MO #410 energy= 2.14589143774546   occ= 0
+MO #411 energy= 2.15077115700985   occ= 0
+MO #412 energy= 2.16407236625484   occ= 0
+MO #413 energy= 2.19189198718437   occ= 0
+MO #414 energy= 2.20525610010121   occ= 0
+MO #415 energy= 2.21103365536462   occ= 0
+MO #416 energy= 2.21866249596544   occ= 0
+MO #417 energy= 2.22869470477294   occ= 0
+MO #418 energy= 2.26073194948088   occ= 0
+MO #419 energy= 2.29587782321328   occ= 0
+MO #420 energy= 2.30576661688951   occ= 0
+MO #421 energy= 2.3107806070606    occ= 0
+MO #422 energy= 2.33078895532539   occ= 0
+MO #423 energy= 2.33429699373662   occ= 0
+MO #424 energy= 2.3511703701961    occ= 0
+MO #425 energy= 2.36105731082017   occ= 0
+MO #426 energy= 2.38518922462237   occ= 0
+MO #427 energy= 2.43234579821754   occ= 0
+MO #428 energy= 2.43796090364075   occ= 0
+MO #429 energy= 2.44516693283185   occ= 0
+MO #430 energy= 2.47405151371584   occ= 0
+MO #431 energy= 2.53063671877699   occ= 0
+MO #432 energy= 2.55524265917813   occ= 0
+MO #433 energy= 2.62830478533279   occ= 0
+MO #434 energy= 2.63661682704277   occ= 0
+MO #435 energy= 2.6644641145249    occ= 0
+MO #436 energy= 2.6673002947826    occ= 0
+MO #437 energy= 2.69324063467103   occ= 0
+MO #438 energy= 2.6975191203354    occ= 0
+MO #439 energy= 2.70697097254553   occ= 0
+MO #440 energy= 2.7133606123503    occ= 0
+MO #441 energy= 2.72954568420208   occ= 0
+MO #442 energy= 2.7320172442521    occ= 0
+MO #443 energy= 2.75336189718509   occ= 0
+MO #444 energy= 2.7570477911229    occ= 0
+MO #445 energy= 2.77391059874561   occ= 0
+MO #446 energy= 2.77696300545395   occ= 0
+MO #447 energy= 2.81817382347798   occ= 0
+MO #448 energy= 2.81976198053936   occ= 0
+MO #449 energy= 2.87258303475523   occ= 0
+MO #450 energy= 2.87353663701753   occ= 0
+MO #451 energy= 2.94042718302966   occ= 0
+MO #452 energy= 2.94604302394415   occ= 0
+MO #453 energy= 2.97309161407948   occ= 0
+MO #454 energy= 2.97365972053397   occ= 0
+MO #455 energy= 3.01958094788155   occ= 0
+MO #456 energy= 3.02001331099712   occ= 0
+MO #457 energy= 3.32830978521234   occ= 0
+MO #458 energy= 3.35995920235555   occ= 0
+MO #459 energy= 3.39638128770743   occ= 0
+MO #460 energy= 3.40887649770072   occ= 0
+MO #461 energy= 3.45055294091934   occ= 0
+MO #462 energy= 3.47712859487032   occ= 0
+MO #463 energy= 3.49835735775027   occ= 0
+MO #464 energy= 3.51510951678901   occ= 0
+MO #465 energy= 3.80561558873226   occ= 0
+MO #466 energy= 3.84407787572715   occ= 0
+MO #467 energy= 5.17873875356571   occ= 0
+MO #468 energy= 5.21254679798304   occ= 0
+MO #469 energy= 6.48782588326953   occ= 0
+MO #470 energy= 6.50996292018139   occ= 0
+MO #471 energy= 7.04746118690151   occ= 0
+MO #472 energy= 7.08503601900418   occ= 0
+MO #473 energy= 7.14986854607998   occ= 0
+MO #474 energy= 7.17321871977384   occ= 0
+MO #475 energy= 12.7230114968119   occ= 0
+MO #476 energy= 12.7553364489679   occ= 0
+MO #477 energy= 12.7927171173129   occ= 0
+MO #478 energy= 12.8082300989419   occ= 0
+MO #479 energy= 13.0685206949786   occ= 0
+MO #480 energy= 13.1348657631217   occ= 0
+MO #481 energy= 13.1475627309659   occ= 0
+MO #482 energy= 13.1808682628526   occ= 0
+MO #483 energy= 13.2769816008864   occ= 0
+MO #484 energy= 13.3511346798471   occ= 0
+MO #485 energy= 18.0959328782757   occ= 0
+MO #486 energy= 18.1548477369149   occ= 0
+MO #487 energy= 29.6664345074199   occ= 0
+MO #488 energy= 29.6920534512512   occ= 0
+MO #489 energy= 33.1959684214044   occ= 0
+MO #490 energy= 33.2494433638037   occ= 0
+MO #491 energy= 33.301559433784    occ= 0
+MO #492 energy= 33.3259065225615   occ= 0
+MO #493 energy= 65.2861658661828   occ= 0
+MO #494 energy= 65.3042174260958   occ= 0
+MO #495 energy= 65.3452005986015   occ= 0
+MO #496 energy= 65.353125305789    occ= 0
+MO #497 energy= 67.7837719605395   occ= 0
+MO #498 energy= 67.8311684700554   occ= 0
+MO #499 energy= 67.8370226136607   occ= 0
+MO #500 energy= 67.8501298307409   occ= 0
+MO #501 energy= 67.8953659791349   occ= 0
+MO #502 energy= 67.9262308285286   occ= 0
+MO #503 energy= 75.5544167746234   occ= 0
+MO #504 energy= 75.5998346962344   occ= 0
+MO #505 energy= 158.595792831145   occ= 0
+MO #506 energy= 158.605859568819   occ= 0
+MO #507 energy= 174.890771197849   occ= 0
+MO #508 energy= 174.910893755571   occ= 0
+MO #509 energy= 174.955625044318   occ= 0
+MO #510 energy= 174.964510620489   occ= 0
+MO #511 energy= 308.448528647174   occ= 0
+MO #512 energy= 308.462559886556   occ= 0
+MO #513 energy= 725.229530270635   occ= 0
+MO #514 energy= 725.231183484753   occ= 0
+MO #515 energy= 846.744845039397   occ= 0
+MO #516 energy= 846.747417021911   occ= 0
+MO #517 energy= 846.783505819003   occ= 0
+MO #518 energy= 846.784829102176   occ= 0
+MO #519 energy= 1057.13900903478   occ= 0
+MO #520 energy= 1057.14183047274   occ= 0
+MO #521 energy= 2996.82668884249   occ= 0
+MO #522 energy= 2996.82731680439   occ= 0
+MO #523 energy= 7255.33894165026   occ= 0
+MO #524 energy= 7255.33912539275   occ= 0
+MO #525 energy= 15388.0039525245   occ= 0
+MO #526 energy= 15388.0040152859   occ= 0
+MO #527 energy= 35974.1096113948   occ= 0
+MO #528 energy= 35974.1096302351   occ= 0
+ ** Mulliken pop       alpha | beta **
+pop of  0 Er 1s        0.04429 | 0.04429   
+pop of  0 Er 2s        0.08470 | 0.08470   
+pop of  0 Er 3s        0.17393 | 0.17393   
+pop of  0 Er 4s        0.31785 | 0.31785   
+pop of  0 Er 5s        0.28268 | 0.28268   
+pop of  0 Er 6s        0.09140 | 0.09141   
+pop of  0 Er 7s        0.47341 | 0.47339   
+pop of  0 Er 8s        0.47573 | 0.47572   
+pop of  0 Er 9s        0.37223 | 0.37281   
+pop of  0 Er 10s        0.65645 | 0.65647   
+pop of  0 Er 11s        0.40495 | 0.40394   
+pop of  0 Er 12s        0.59935 | 0.59999   
+pop of  0 Er 13s        0.17558 | 0.15944   
+pop of  0 Er 14s        0.71017 | 0.71033   
+pop of  0 Er 15s        0.14184 | 0.15857   
+pop of  0 Er 16s        0.01798 | 0.01368   
+pop of  0 Er 17s        0.09752 | 0.09746   
+pop of  0 Er 18s        0.00261 | 0.00275   
+pop of  0 Er 2px       0.35449 | 0.35449   
+pop of  0 Er 2py       0.35448 | 0.35448   
+pop of  0 Er 2pz       0.35448 | 0.35449   
+pop of  0 Er 3px       0.48824 | 0.48825   
+pop of  0 Er 3py       0.48824 | 0.48824   
+pop of  0 Er 3pz       0.48825 | 0.48825   
+pop of  0 Er 4px       0.25296 | 0.25303   
+pop of  0 Er 4py       0.25296 | 0.25304   
+pop of  0 Er 4pz       0.25299 | 0.25306   
+pop of  0 Er 5px       0.71042 | 0.71074   
+pop of  0 Er 5py       0.71036 | 0.71068   
+pop of  0 Er 5pz       0.71039 | 0.71066   
+pop of  0 Er 6px       0.32306 | 0.32261   
+pop of  0 Er 6py       0.32308 | 0.32263   
+pop of  0 Er 6pz       0.32294 | 0.32257   
+pop of  0 Er 7px       0.75770 | 0.75616   
+pop of  0 Er 7py       0.75763 | 0.75610   
+pop of  0 Er 7pz       0.75687 | 0.75549   
+pop of  0 Er 8px       0.19152 | 0.18484   
+pop of  0 Er 8py       0.19106 | 0.18444   
+pop of  0 Er 8pz       0.18991 | 0.18422   
+pop of  0 Er 9px       0.62840 | 0.61410   
+pop of  0 Er 9py       0.62731 | 0.61276   
+pop of  0 Er 9pz       0.62187 | 0.60933   
+pop of  0 Er 10px       0.29768 | 0.31945   
+pop of  0 Er 10py       0.28830 | 0.31028   
+pop of  0 Er 10pz       0.30239 | 0.32098   
+pop of  0 Er 11px       0.00111 | -0.00035  
+pop of  0 Er 11py       0.02040 | 0.01893   
+pop of  0 Er 11pz       0.00338 | 0.00267   
+pop of  0 Er 12px       0.04471 | 0.04466   
+pop of  0 Er 12py       0.04546 | 0.04541   
+pop of  0 Er 12pz       0.04889 | 0.04885   
+pop of  0 Er 13px       0.02612 | 0.02619   
+pop of  0 Er 13py       0.01211 | 0.01218   
+pop of  0 Er 13pz       0.02345 | 0.02355   
+pop of  0 Er 3dxy      0.58596 | 0.58674   
+pop of  0 Er 3dyz      0.58607 | 0.58679   
+pop of  0 Er 3dz^2     0.58606 | 0.58662   
+pop of  0 Er 3dxz      0.58600 | 0.58673   
+pop of  0 Er 3dx2-y2    0.58593 | 0.58670   
+pop of  0 Er 4dxy      0.42370 | 0.42337   
+pop of  0 Er 4dyz      0.42365 | 0.42334   
+pop of  0 Er 4dz^2     0.42362 | 0.42339   
+pop of  0 Er 4dxz      0.42366 | 0.42335   
+pop of  0 Er 4dx2-y2    0.42371 | 0.42338   
+pop of  0 Er 5dxy      0.48028 | 0.47975   
+pop of  0 Er 5dyz      0.48004 | 0.47953   
+pop of  0 Er 5dz^2     0.47943 | 0.47892   
+pop of  0 Er 5dxz      0.47987 | 0.47933   
+pop of  0 Er 5dx2-y2    0.48017 | 0.47961   
+pop of  0 Er 6dxy      0.47949 | 0.47906   
+pop of  0 Er 6dyz      0.47974 | 0.47925   
+pop of  0 Er 6dz^2     0.47943 | 0.47899   
+pop of  0 Er 6dxz      0.47948 | 0.47901   
+pop of  0 Er 6dx2-y2    0.47943 | 0.47901   
+pop of  0 Er 7dxy      0.03389 | 0.03375   
+pop of  0 Er 7dyz      0.03563 | 0.03535   
+pop of  0 Er 7dz^2     0.03288 | 0.03319   
+pop of  0 Er 7dxz      0.03321 | 0.03330   
+pop of  0 Er 7dx2-y2    0.03278 | 0.03281   
+pop of  0 Er 8dxy      0.02778 | 0.02613   
+pop of  0 Er 8dyz      0.03242 | 0.03055   
+pop of  0 Er 8dz^2     0.01733 | 0.01670   
+pop of  0 Er 8dxz      0.02669 | 0.02537   
+pop of  0 Er 8dx2-y2    0.02347 | 0.02204   
+pop of  0 Er 9dxy      0.02688 | 0.02585   
+pop of  0 Er 9dyz      0.05068 | 0.04932   
+pop of  0 Er 9dz^2     0.02682 | 0.02639   
+pop of  0 Er 9dxz      0.01250 | 0.01182   
+pop of  0 Er 9dx2-y2    0.01660 | 0.01583   
+pop of  0 Er 10dxy      0.03731 | 0.03727   
+pop of  0 Er 10dyz      0.03544 | 0.03542   
+pop of  0 Er 10dz^2     0.04003 | 0.03998   
+pop of  0 Er 10dxz      0.02668 | 0.02666   
+pop of  0 Er 10dx2-y2    0.02796 | 0.02795   
+pop of  0 Er 11dxy      0.01469 | 0.01466   
+pop of  0 Er 11dyz      0.01886 | 0.01888   
+pop of  0 Er 11dz^2     0.01618 | 0.01616   
+pop of  0 Er 11dxz      0.01985 | 0.01983   
+pop of  0 Er 11dx2-y2    0.01247 | 0.01246   
+pop of  0 Er 4f-3      0.96024 | 0.48269   
+pop of  0 Er 4f-2      0.95315 | 0.48326   
+pop of  0 Er 4f-1      0.96540 | 0.50627   
+pop of  0 Er 4f+0      0.96480 | 0.94653   
+pop of  0 Er 4f+1      0.96610 | 0.49627   
+pop of  0 Er 4f+2      0.95183 | 0.50012   
+pop of  0 Er 4f+3      0.96025 | 0.48488   
+pop of  0 Er 5f-3      0.03192 | 0.01913   
+pop of  0 Er 5f-2      0.03317 | 0.02150   
+pop of  0 Er 5f-1      0.03337 | 0.02330   
+pop of  0 Er 5f+0      0.03443 | 0.04174   
+pop of  0 Er 5f+1      0.03453 | 0.02379   
+pop of  0 Er 5f+2      0.03214 | 0.02045   
+pop of  0 Er 5f+3      0.03102 | 0.01803   
+pop of  0 Er 6f-3      0.00829 | 0.00759   
+pop of  0 Er 6f-2      0.00349 | 0.00246   
+pop of  0 Er 6f-1      0.01428 | 0.01338   
+pop of  0 Er 6f+0      0.01711 | 0.01723   
+pop of  0 Er 6f+1      0.00446 | 0.00394   
+pop of  0 Er 6f+2      0.00831 | 0.00749   
+pop of  0 Er 6f+3      0.00836 | 0.00771   
+pop of  1 O 1s        0.99906 | 0.99906   
+pop of  1 O 2s        0.43515 | 0.43542   
+pop of  1 O 3s        0.55112 | 0.55107   
+pop of  1 O 2px       0.45039 | 0.45053   
+pop of  1 O 2py       0.49775 | 0.49834   
+pop of  1 O 2pz       0.49145 | 0.49251   
+pop of  1 O 3px       0.28395 | 0.28392   
+pop of  1 O 3py       0.37883 | 0.37879   
+pop of  1 O 3pz       0.34137 | 0.34138   
+pop of  2 O 1s        0.99903 | 0.99903   
+pop of  2 O 2s        0.43632 | 0.43633   
+pop of  2 O 3s        0.53906 | 0.53903   
+pop of  2 O 2px       0.54158 | 0.54165   
+pop of  2 O 2py       0.46410 | 0.46410   
+pop of  2 O 2pz       0.42883 | 0.42885   
+pop of  2 O 3px       0.39199 | 0.39200   
+pop of  2 O 3py       0.35858 | 0.35858   
+pop of  2 O 3pz       0.29599 | 0.29600   
+pop of  3 O 1s        0.99906 | 0.99906   
+pop of  3 O 2s        0.43870 | 0.43903   
+pop of  3 O 3s        0.55272 | 0.55262   
+pop of  3 O 2px       0.45231 | 0.45260   
+pop of  3 O 2py       0.47695 | 0.47760   
+pop of  3 O 2pz       0.50301 | 0.50430   
+pop of  3 O 3px       0.28213 | 0.28206   
+pop of  3 O 3py       0.35878 | 0.35877   
+pop of  3 O 3pz       0.34571 | 0.34571   
+pop of  4 O 1s        0.99906 | 0.99906   
+pop of  4 O 2s        0.43393 | 0.43421   
+pop of  4 O 3s        0.55172 | 0.55167   
+pop of  4 O 2px       0.44320 | 0.44331   
+pop of  4 O 2py       0.50822 | 0.50892   
+pop of  4 O 2pz       0.48717 | 0.48819   
+pop of  4 O 3px       0.28704 | 0.28702   
+pop of  4 O 3py       0.38248 | 0.38243   
+pop of  4 O 3pz       0.34692 | 0.34694   
+pop of  5 O 1s        0.99902 | 0.99902   
+pop of  5 O 2s        0.43571 | 0.43573   
+pop of  5 O 3s        0.53737 | 0.53734   
+pop of  5 O 2px       0.53930 | 0.53937   
+pop of  5 O 2py       0.46181 | 0.46184   
+pop of  5 O 2pz       0.43539 | 0.43540   
+pop of  5 O 3px       0.39235 | 0.39235   
+pop of  5 O 3py       0.34474 | 0.34475   
+pop of  5 O 3pz       0.31567 | 0.31568   
+pop of  6 O 1s        0.99906 | 0.99906   
+pop of  6 O 2s        0.43901 | 0.43935   
+pop of  6 O 3s        0.55281 | 0.55271   
+pop of  6 O 2px       0.46918 | 0.46953   
+pop of  6 O 2py       0.47108 | 0.47172   
+pop of  6 O 2pz       0.50153 | 0.50288   
+pop of  6 O 3px       0.28300 | 0.28291   
+pop of  6 O 3py       0.33104 | 0.33105   
+pop of  6 O 3pz       0.34610 | 0.34609   
+pop of  7 O 1s        0.99904 | 0.99904   
+pop of  7 O 2s        0.43611 | 0.43646   
+pop of  7 O 3s        0.54949 | 0.54941   
+pop of  7 O 2px       0.52773 | 0.52939   
+pop of  7 O 2py       0.46672 | 0.46746   
+pop of  7 O 2pz       0.44611 | 0.44642   
+pop of  7 O 3px       0.37006 | 0.36998   
+pop of  7 O 3py       0.33579 | 0.33586   
+pop of  7 O 3pz       0.28167 | 0.28170   
+pop of  8 O 1s        0.99906 | 0.99906   
+pop of  8 O 2s        0.43459 | 0.43493   
+pop of  8 O 3s        0.55393 | 0.55389   
+pop of  8 O 2px       0.42356 | 0.42404   
+pop of  8 O 2py       0.50691 | 0.50791   
+pop of  8 O 2pz       0.50798 | 0.50899   
+pop of  8 O 3px       0.24033 | 0.24044   
+pop of  8 O 3py       0.38215 | 0.38210   
+pop of  8 O 3pz       0.37801 | 0.37794   
+pop of  9 O 1s        0.99907 | 0.99907   
+pop of  9 O 2s        0.43451 | 0.43486   
+pop of  9 O 3s        0.55531 | 0.55525   
+pop of  9 O 2px       0.41829 | 0.41874   
+pop of  9 O 2py       0.50711 | 0.50821   
+pop of  9 O 2pz       0.50847 | 0.50946   
+pop of  9 O 3px       0.24427 | 0.24438   
+pop of  9 O 3py       0.38457 | 0.38452   
+pop of  9 O 3pz       0.38461 | 0.38454   
+pop of  10 O 1s        0.99904 | 0.99904   
+pop of  10 O 2s        0.44002 | 0.44003   
+pop of  10 O 3s        0.53940 | 0.53937   
+pop of  10 O 2px       0.49580 | 0.49587   
+pop of  10 O 2py       0.45651 | 0.45651   
+pop of  10 O 2pz       0.48037 | 0.48042   
+pop of  10 O 3px       0.32194 | 0.32195   
+pop of  10 O 3py       0.33607 | 0.33607   
+pop of  10 O 3pz       0.35032 | 0.35033   
+pop of  11 O 1s        0.99905 | 0.99905   
+pop of  11 O 2s        0.43707 | 0.43740   
+pop of  11 O 3s        0.55076 | 0.55069   
+pop of  11 O 2px       0.52835 | 0.52984   
+pop of  11 O 2py       0.46836 | 0.46913   
+pop of  11 O 2pz       0.44263 | 0.44290   
+pop of  11 O 3px       0.36835 | 0.36826   
+pop of  11 O 3py       0.33667 | 0.33675   
+pop of  11 O 3pz       0.27575 | 0.27578   
+pop of  12 C 1s        0.99895 | 0.99895   
+pop of  12 C 2s        0.37202 | 0.37192   
+pop of  12 C 3s        0.02832 | 0.02829   
+pop of  12 C 2px       0.35438 | 0.35430   
+pop of  12 C 2py       0.24613 | 0.24606   
+pop of  12 C 2pz       0.33303 | 0.33293   
+pop of  12 C 3px       0.03999 | 0.03998   
+pop of  12 C 3py       0.09526 | 0.09523   
+pop of  12 C 3pz       0.02739 | 0.02740   
+pop of  13 C 1s        0.99895 | 0.99895   
+pop of  13 C 2s        0.37238 | 0.37227   
+pop of  13 C 3s        0.02341 | 0.02338   
+pop of  13 C 2px       0.35008 | 0.35001   
+pop of  13 C 2py       0.27210 | 0.27202   
+pop of  13 C 2pz       0.31738 | 0.31729   
+pop of  13 C 3px       0.04090 | 0.04089   
+pop of  13 C 3py       0.07220 | 0.07217   
+pop of  13 C 3pz       0.04049 | 0.04049   
+pop of  14 C 1s        0.99895 | 0.99895   
+pop of  14 C 2s        0.37267 | 0.37255   
+pop of  14 C 3s        0.02486 | 0.02481   
+pop of  14 C 2px       0.35598 | 0.35588   
+pop of  14 C 2py       0.27209 | 0.27198   
+pop of  14 C 2pz       0.31156 | 0.31146   
+pop of  14 C 3px       0.01249 | 0.01249   
+pop of  14 C 3py       0.07824 | 0.07822   
+pop of  14 C 3pz       0.06335 | 0.06330   
+pop of  15 C 1s        0.99895 | 0.99895   
+pop of  15 C 2s        0.37202 | 0.37191   
+pop of  15 C 3s        0.02752 | 0.02747   
+pop of  15 C 2px       0.35090 | 0.35080   
+pop of  15 C 2py       0.27127 | 0.27117   
+pop of  15 C 2pz       0.31348 | 0.31338   
+pop of  15 C 3px       0.01809 | 0.01808   
+pop of  15 C 3py       0.07609 | 0.07608   
+pop of  15 C 3pz       0.05637 | 0.05632   
+pop of  16 O 1s        0.99904 | 0.99904   
+pop of  16 O 2s        0.44075 | 0.44076   
+pop of  16 O 3s        0.54023 | 0.54021   
+pop of  16 O 2px       0.49146 | 0.49153   
+pop of  16 O 2py       0.45931 | 0.45932   
+pop of  16 O 2pz       0.48076 | 0.48082   
+pop of  16 O 3px       0.31538 | 0.31539   
+pop of  16 O 3py       0.33660 | 0.33661   
+pop of  16 O 3pz       0.34760 | 0.34761   
+In total            97.94683 | 95.05317  
+ ** Mulliken atomic charges   ( Nelec_alpha | Nelec_beta ) **
+charge of  0Er =      1.13703  (    34.88776     31.97521 )
+charge of  1O =     -0.86010  (     4.42907      4.43103 )
+charge of  2O =     -0.91103  (     4.45547      4.45556 )
+charge of  3O =     -0.82113  (     4.40937      4.41176 )
+charge of  4O =     -0.88147  (     4.43972      4.44175 )
+charge of  5O =     -0.92285  (     4.46137      4.46149 )
+charge of  6O =     -0.78808  (     4.39280      4.39528 )
+charge of  7O =     -0.82843  (     4.41271      4.41572 )
+charge of  8O =     -0.85584  (     4.42652      4.42931 )
+charge of  9O =     -0.87525  (     4.43621      4.43904 )
+charge of  10O =     -0.83905  (     4.41946      4.41959 )
+charge of  11O =     -0.81678  (     4.40698      4.40980 )
+charge of  12C =      1.00946  (     2.49547      2.49507 )
+charge of  13C =      1.02463  (     2.48789      2.48748 )
+charge of  14C =      1.02017  (     2.49019      2.48964 )
+charge of  15C =      1.03115  (     2.48470      2.48415 )
+charge of  16O =     -0.82243  (     4.41113      4.41130 )
+Load .chk file for init guess
+Haar random target direction [-0.36250595604402835, -0.8918846790385293, 0.27042771886207334]
+Haar random total rotation [0.     1.297  4.3263]
+(3, 264, 264) 264
+Rotated f-block dm by angles from +z [0.     1.297  4.3263]
+(3, 264, 264) 264
+elemental J of ['C' 'Er' 'O']
+   C 0.0004-0.0740j 0.0000-0.5075j 0.0007+0.0226j 
+  Er -2.5226-0.0095j -6.2703+0.0096j 2.3688+0.0086j 
+   O -0.0005-0.1016j -0.0001+0.3323j -0.0205-0.0312j 
+J vector of initial guess [-2.5228+0.j -6.2703+0.j  2.349 +0.j]
+target direction [-0.36250595604402835, -0.8918846790385293, 0.27042771886207334]
+target direction: [-0.3625 -0.8919  0.2704]
+(3, 264, 264) 264
+LO error from I 5.179942645105323e-06
+ao_index [ 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 363 364 365 366 367 368 369 370 371 372 373 374 375 376 377 378 379 380 381 382 383]
+ao_labels ['0 Er 4f-3  ' '0 Er 4f-2  ' '0 Er 4f-1  ' '0 Er 4f+0  ' '0 Er 4f+1  ' '0 Er 4f+2  ' '0 Er 4f+3  ' '0 Er 5f-3  ' '0 Er 5f-2  ' '0 Er 5f-1  ' '0 Er 5f+0  ' '0 Er 5f+1  ' '0 Er 5f+2  ' '0 Er 5f+3  ' '0 Er 6f-3  ' '0 Er 6f-2  ' '0 Er 6f-1  ' '0 Er 6f+0  ' '0 Er 6f+1  ' '0 Er 6f+2  ' '0 Er 6f+3  ']
+
+
+******** <class 'pyscf.x2c.x2c.X2C1eGKS'> ********
+method = X2C1eGKS
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+diis_damp = 0
+SCF conv_tol = 1e-09
+SCF conv_tol_grad = None
+SCF max_cycles = 500
+direct_scf = True
+direct_scf_tol = 1e-13
+chkfile to save SCF result = constrained_chkfile.chk
+max_memory 40000 MB (current use 230 MB)
+XC library pyscf.dft.libxc version 6.1.0
+    S. Lehtola, C. Steigemann, M. J.T. Oliveira, and M. A.L. Marques.,  SoftwareX 7, 1–5 (2018)
+XC functionals = HF
+
+radial grids: 
+    Treutler-Ahlrichs [JCP 102, 346 (1995); DOI:10.1063/1.469408] (M4) radial grids
+    
+becke partition: Becke, JCP 88, 2547 (1988); DOI:10.1063/1.454033
+pruning grids: <function nwchem_prune at 0x7f2215435d00>
+grids dens level: 3
+symmetrized grids: False
+atomic radii adjust function: <function treutler_atomic_radii_adjust at 0x7f2215436340>
+small_rho_cutoff = 1e-07
+collinear = col
+
+
+******** <class 'pyscf.x2c.x2c.SpinOrbitalX2CHelper'> ********
+approx = 1e
+xuncontract = 1
+Overwritten attributes  get_veff get_hcore  of <class 'pyscf.x2c.x2c.X2C1eGKS'>
+Set gradient conv threshold to 3.16228e-05
+tot grids = 247904
+J                           [-2.5224 -6.2683  2.3538]
+energy penalty 0.0013511110753881895
+init E= -14191.0692850217
+  HOMO = -0.014346787356155  LUMO = 0.259561409194291
+J                           [-2.7071 -6.6681  2.0506]
+energy penalty 5.29926458785468e-06
+cycle= 1 E= -14191.1423912035  delta_E= -0.0731  |g|= 0.0666  |ddm|= 0.313
+  HOMO = -0.0143018275617617  LUMO = 0.259551365123245
+J                           [-2.7075 -6.6701  2.045 ]
+energy penalty 3.332349068063678e-06
+cycle= 2 E= -14191.1441137313  delta_E= -0.00172  |g|= 0.0448  |ddm|= 0.0532
+  HOMO = -0.0144412211081586  LUMO = 0.259547791786471
+J                           [-2.7075 -6.6709  2.043 ]
+energy penalty 2.764554111678308e-06
+cycle= 3 E= -14191.1443519029  delta_E= -0.000238  |g|= 0.0114  |ddm|= 0.0211
+  HOMO = -0.014457226142808  LUMO = 0.259551075989546
+J                           [-2.7073 -6.672   2.0402]
+energy penalty 2.0520735726670127e-06
+cycle= 4 E= -14191.1444103404  delta_E= -5.84e-05  |g|= 0.00312  |ddm|= 0.00994
+  HOMO = -0.0143870624257425  LUMO = 0.259551988629332
+J                           [-2.7071 -6.6729  2.0384]
+energy penalty 1.6603679502402713e-06
+cycle= 5 E= -14191.1444206773  delta_E= -1.03e-05  |g|= 0.00223  |ddm|= 0.0031
+  HOMO = -0.0144086059306575  LUMO = 0.259550145108937
+J                           [-2.7068 -6.6744  2.0353]
+energy penalty 1.1277825404221176e-06
+cycle= 6 E= -14191.1444324577  delta_E= -1.18e-05  |g|= 0.00173  |ddm|= 0.00432
+  HOMO = -0.0143472183671132  LUMO = 0.259553300527868
+J                           [-2.7065 -6.676   2.0319]
+energy penalty 7.195536944060166e-07
+cycle= 7 E= -14191.1444419141  delta_E= -9.46e-06  |g|= 0.00141  |ddm|= 0.0044
+  HOMO = -0.0143567895789425  LUMO = 0.259550564181773
+J                           [-2.7061 -6.6778  2.0281]
+energy penalty 4.848830027270879e-07
+cycle= 8 E= -14191.1444500782  delta_E= -8.16e-06  |g|= 0.00112  |ddm|= 0.00481
+  HOMO = -0.0143944406845857  LUMO = 0.259552583668954
+J                           [-2.7057 -6.6798  2.0239]
+energy penalty 5.007977868842773e-07
+cycle= 9 E= -14191.1444574487  delta_E= -7.37e-06  |g|= 0.000911  |ddm|= 0.0056
+  HOMO = -0.0143598980651388  LUMO = 0.259550889001974
+J                           [-2.7055 -6.6805  2.0223]
+energy penalty 5.804975866219309e-07
+cycle= 10 E= -14191.1444601551  delta_E= -2.71e-06  |g|= 0.000851  |ddm|= 0.00235
+  HOMO = -0.0143806658835323  LUMO = 0.259551749375346
+J                           [-2.7054 -6.6812  2.0209]
+energy penalty 6.861078593267679e-07
+cycle= 11 E= -14191.1444631969  delta_E= -3.04e-06  |g|= 0.000793  |ddm|= 0.00267
+  HOMO = -0.0143845004191255  LUMO = 0.25955176466607
+J                           [-2.7052 -6.6825  2.0186]
+energy penalty 9.3328769921186e-07
+cycle= 12 E= -14191.1444696635  delta_E= -6.47e-06  |g|= 0.000693  |ddm|= 0.00619
+  HOMO = -0.0143790855944906  LUMO = 0.25955169786472
+J                           [-2.705  -6.6833  2.017 ]
+energy penalty 1.1685579702991334e-06
+cycle= 13 E= -14191.1444749043  delta_E= -5.24e-06  |g|= 0.000629  |ddm|= 0.00584
+  HOMO = -0.0143769632865251  LUMO = 0.259551947581407
+J                           [-2.705  -6.6838  2.0161]
+energy penalty 1.314309574862449e-06
+cycle= 14 E= -14191.1444792441  delta_E= -4.34e-06  |g|= 0.000577  |ddm|= 0.00544
+  HOMO = -0.0143809767779343  LUMO = 0.259551906559497
+J                           [-2.705  -6.684   2.0159]
+energy penalty 1.3561321529742543e-06
+cycle= 15 E= -14191.1444833359  delta_E= -4.09e-06  |g|= 0.000522  |ddm|= 0.00572
+  HOMO = -0.0143672859140244  LUMO = 0.259551984505
+J                           [-2.705  -6.6839  2.0162]
+energy penalty 1.3013462444533276e-06
+cycle= 16 E= -14191.1444874844  delta_E= -4.15e-06  |g|= 0.000446  |ddm|= 0.00676
+  HOMO = -0.0143780400353316  LUMO = 0.259552071933636
+J                           [-2.7051 -6.6831  2.0174]
+energy penalty 1.102407936670602e-06
+cycle= 17 E= -14191.1444919195  delta_E= -4.44e-06  |g|= 0.000351  |ddm|= 0.00935
+  HOMO = -0.0143713825084783  LUMO = 0.259552538977744
+J                           [-2.7051 -6.6826  2.0181]
+energy penalty 9.986694706753951e-07
+cycle= 18 E= -14191.1444935814  delta_E= -1.66e-06  |g|= 0.000307  |ddm|= 0.00475
+  HOMO = -0.0143722633078223  LUMO = 0.259552054257363
+J                           [-2.7051 -6.6821  2.0189]
+energy penalty 8.946881504101612e-07
+cycle= 19 E= -14191.1444947047  delta_E= -1.12e-06  |g|= 0.000265  |ddm|= 0.00391
+  HOMO = -0.0143820712761415  LUMO = 0.259552678229622
+J                           [-2.7051 -6.6818  2.0193]
+energy penalty 8.481818493777383e-07
+cycle= 20 E= -14191.144495342  delta_E= -6.37e-07  |g|= 0.000233  |ddm|= 0.0025
+  HOMO = -0.0143738783585946  LUMO = 0.259552308156864
+J                           [-2.7051 -6.6815  2.0195]
+energy penalty 8.150086062919116e-07
+cycle= 21 E= -14191.1444959163  delta_E= -5.74e-07  |g|= 0.000196  |ddm|= 0.00267
+  HOMO = -0.0143761699756009  LUMO = 0.259552403754964
+J                           [-2.705  -6.6812  2.0196]
+energy penalty 7.977654416180258e-07
+cycle= 22 E= -14191.1444964387  delta_E= -5.22e-07  |g|= 0.000155  |ddm|= 0.00308
+  HOMO = -0.0143765229722149  LUMO = 0.259552476489009
+J                           [-2.7049 -6.681   2.0196]
+energy penalty 8.016540717470378e-07
+cycle= 23 E= -14191.1444966458  delta_E= -2.07e-07  |g|= 0.000136  |ddm|= 0.00165
+  HOMO = -0.0143776097150469  LUMO = 0.259552559726384
+J                           [-2.7048 -6.681   2.0194]
+energy penalty 8.177904255113334e-07
+cycle= 24 E= -14191.1444967857  delta_E= -1.4e-07  |g|= 0.000122  |ddm|= 0.00122
+  HOMO = -0.0143742868672824  LUMO = 0.259552508167925
+J                           [-2.7048 -6.681   2.0192]
+energy penalty 8.349348816771851e-07
+cycle= 25 E= -14191.1444968789  delta_E= -9.33e-08  |g|= 0.000112  |ddm|= 0.000969
+  HOMO = -0.0143768416389181  LUMO = 0.259552510956691
+J                           [-2.7047 -6.6809  2.019 ]
+energy penalty 8.609482638810562e-07
+cycle= 26 E= -14191.1444969833  delta_E= -1.04e-07  |g|= 9.9e-05  |ddm|= 0.00123
+  HOMO = -0.0143755224194021  LUMO = 0.259552627600949
+J                           [-2.7045 -6.6809  2.0188]
+energy penalty 8.880380033993163e-07
+cycle= 27 E= -14191.1444970684  delta_E= -8.51e-08  |g|= 8.84e-05  |ddm|= 0.00126
+  HOMO = -0.0143757024170505  LUMO = 0.259552495827624
+J                           [-2.7044 -6.6809  2.0186]
+energy penalty 9.102427674712033e-07
+cycle= 28 E= -14191.1444971229  delta_E= -5.45e-08  |g|= 7.99e-05  |ddm|= 0.00109
+  HOMO = -0.014377621012643  LUMO = 0.259552602334462
+J                           [-2.7043 -6.6808  2.0185]
+energy penalty 9.306716266976878e-07
+cycle= 29 E= -14191.1444971618  delta_E= -3.89e-08  |g|= 7.32e-05  |ddm|= 0.000913
+  HOMO = -0.0143756907238259  LUMO = 0.259552545613486
+J                           [-2.7043 -6.6808  2.0184]
+energy penalty 9.405601283596355e-07
+cycle= 30 E= -14191.1444971808  delta_E= -1.9e-08  |g|= 6.97e-05  |ddm|= 0.000504
+  HOMO = -0.0143766175537736  LUMO = 0.259552589924867
+J                           [-2.7042 -6.6808  2.0184]
+energy penalty 9.49922256054947e-07
+cycle= 31 E= -14191.1444972017  delta_E= -2.09e-08  |g|= 6.6e-05  |ddm|= 0.000444
+  HOMO = -0.014376307223624  LUMO = 0.259552568326422
+J                           [-2.7042 -6.6808  2.0183]
+energy penalty 9.5769855574801e-07
+cycle= 32 E= -14191.144497224  delta_E= -2.23e-08  |g|= 6.24e-05  |ddm|= 0.000398
+  HOMO = -0.014376591468619  LUMO = 0.259552602076831
+J                           [-2.7041 -6.6808  2.0183]
+energy penalty 9.666832341714837e-07
+cycle= 33 E= -14191.144497254  delta_E= -3e-08  |g|= 5.8e-05  |ddm|= 0.000531
+  HOMO = -0.014375541003315  LUMO = 0.259552576975058
+J                           [-2.7041 -6.6808  2.0183]
+energy penalty 9.720437921245662e-07
+cycle= 34 E= -14191.1444972757  delta_E= -2.17e-08  |g|= 5.5e-05  |ddm|= 0.00038
+  HOMO = -0.0143762601214892  LUMO = 0.259552562596311
+J                           [-2.704  -6.6808  2.0183]
+energy penalty 9.772697505461282e-07
+cycle= 35 E= -14191.1444972988  delta_E= -2.31e-08  |g|= 5.16e-05  |ddm|= 0.000439
+  HOMO = -0.0143757586807768  LUMO = 0.259552587010367
+J                           [-2.704  -6.6808  2.0183]
+energy penalty 9.80614043033512e-07
+cycle= 36 E= -14191.1444973229  delta_E= -2.41e-08  |g|= 4.79e-05  |ddm|= 0.00047
+  HOMO = -0.0143759476034541  LUMO = 0.259552544793578
+J                           [-2.704  -6.6808  2.0183]
+energy penalty 9.829311925280139e-07
+cycle= 37 E= -14191.1444973437  delta_E= -2.08e-08  |g|= 4.46e-05  |ddm|= 0.00046
+  HOMO = -0.0143768831017477  LUMO = 0.259552580035483
+J                           [-2.704  -6.6808  2.0183]
+energy penalty 9.838666374939464e-07
+cycle= 38 E= -14191.1444973659  delta_E= -2.22e-08  |g|= 4.11e-05  |ddm|= 0.000555
+  HOMO = -0.0143759663385034  LUMO = 0.259552556736863
+J                           [-2.704  -6.6808  2.0183]
+energy penalty 9.834956285814657e-07
+cycle= 39 E= -14191.1444973775  delta_E= -1.16e-08  |g|= 3.92e-05  |ddm|= 0.000322
+  HOMO = -0.0143766449861711  LUMO = 0.259552582446519
+J                           [-2.704  -6.6808  2.0183]
+energy penalty 9.822259833924818e-07
+cycle= 40 E= -14191.1444973895  delta_E= -1.21e-08  |g|= 3.71e-05  |ddm|= 0.000363
+  HOMO = -0.01437636076168  LUMO = 0.259552554457164
+J                           [-2.704  -6.6808  2.0184]
+energy penalty 9.802965180938373e-07
+cycle= 41 E= -14191.1444974009  delta_E= -1.13e-08  |g|= 3.48e-05  |ddm|= 0.000372
+  HOMO = -0.0143762997708848  LUMO = 0.259552567119175
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.770790890151204e-07
+cycle= 42 E= -14191.1444974143  delta_E= -1.34e-08  |g|= 3.18e-05  |ddm|= 0.000508
+  HOMO = -0.0143756208658908  LUMO = 0.259552547515921
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.743159935737823e-07
+cycle= 43 E= -14191.1444974237  delta_E= -9.39e-09  |g|= 2.93e-05  |ddm|= 0.00045
+  HOMO = -0.0143760306091676  LUMO = 0.259552541778213
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.717942335285557e-07
+cycle= 44 E= -14191.1444974307  delta_E= -6.97e-09  |g|= 2.66e-05  |ddm|= 0.00045
+  HOMO = -0.0143757086779819  LUMO = 0.259552544730207
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.698937383895157e-07
+cycle= 45 E= -14191.1444974352  delta_E= -4.58e-09  |g|= 2.41e-05  |ddm|= 0.000399
+  HOMO = -0.0143759893751845  LUMO = 0.259552538260178
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.689522562084107e-07
+cycle= 46 E= -14191.1444974374  delta_E= -2.14e-09  |g|= 2.24e-05  |ddm|= 0.00028
+  HOMO = -0.0143765655899459  LUMO = 0.259552546793921
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.682891173312669e-07
+cycle= 47 E= -14191.1444974391  delta_E= -1.68e-09  |g|= 2.04e-05  |ddm|= 0.000264
+  HOMO = -0.0143760364882239  LUMO = 0.259552533322041
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.680776797083014e-07
+cycle= 48 E= -14191.1444974401  delta_E= -1e-09  |g|= 1.91e-05  |ddm|= 0.000154
+  HOMO = -0.014376520961072  LUMO = 0.25955254601771
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.68002984169658e-07
+cycle= 49 E= -14191.1444974411  delta_E= -9.97e-10  |g|= 1.75e-05  |ddm|= 0.000167
+  HOMO = -0.0143762494531549  LUMO = 0.259552531057072
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 9.680550835611258e-07
+Extra cycle  E= -14191.1444974415  delta_E= -4.58e-10  |g|= 1.69e-05  |ddm|= 1.82e-05
+converged SCF energy = -14191.1444974415  <S^2> = 3.6975549  2S+1 = 3.9736909
+(3, 264, 264) 264
+local mj [-2.704 +0.j -6.6807+0.j  2.0184+0.j]
+J                           [-2.704  -6.6807  2.0184]
+energy penalty 0.0
+**J_vector, dft energy** [-2.7028+0.j -6.6772+0.j  2.0185+0.j] -14191.144498409576
+tot grids = 247904
+energy with functional HF -14191.144498409572
+tot grids = 1067264
+energy with functional PBE0 -14199.809514284356
+(3, 264, 264) 264
+S vector [-0.5268+0.j -1.292 -0.j  0.3932-0.j]
+(3, 264, 264) 264
+L vector [-2.176 +0.j -5.3852+0.j  1.6254+0.j]
+(3, 264, 264) 264
+J vector [-2.7028+0.j -6.6772+0.j  2.0185+0.j]
+Tue Apr 15 22:04:05 PDT 2025

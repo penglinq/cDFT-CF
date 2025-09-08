@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --qos=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=64
+#SBATCH --time=0-10:00:00
+#SBATCH --constraint=cpu
+#SBATCH --output=run_%a/slurm_energy.out
+#SBATCH --mail-type=END,FAIL
+#SBATCH --array=0-99
+
+export OMP_NUM_THREADS=32
+module list
+pwd
+date
+srun hostname
+cd "run_"$SLURM_ARRAY_TASK_ID
+python ./energy.py
+cd ../
+date

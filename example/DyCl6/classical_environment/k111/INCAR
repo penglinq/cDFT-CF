@@ -1,0 +1,129 @@
+SYSTEM = vasp
+
+#### sym ####
+#ISYM = 0
+
+#### system size ####
+#NBANDS = 448
+#NELECT = 383.0
+
+#### accuracy ####
+PREC = Accurate
+ENCUT = 400
+LREAL = F
+
+#### density functional ####
+
+## optB86b-vdW
+#GGA = MK 
+#PARAM1 = 0.1234 
+#PARAM2 = 1.0000
+#LUSE_VDW = .TRUE.
+#AGGAC = 0.0000
+
+# LDA
+#GGA = CA
+
+# PBE
+GGA = PE
+
+#### parallelization ####
+#KPAR = 4
+NCORE = 16
+
+#### electronic optimization ####
+EDIFF = 1E-8
+NELM = 500
+#NELMIN = 10
+NELMDL = -8
+AMIX = 0.35
+AMIX_MAG = 0.7
+AMIX_MIN = 0.05
+#BMIX = 0.0001
+#BMIX_MAG = 0.0001
+#ALGO = All
+
+#### structural relaxation ####
+#NSW = 3
+#IBRION = -2
+#ISIF = 2
+#EDIFFG = -0.02
+#POTIM = 0.3
+
+#### magnetism: accuracy ####
+LASPH = T
+GGA_COMPAT = F
+
+#### magnetism: collinear spin ####
+ISPIN = 2
+MAGMOM = 5.0 1000*0.0
+NUPDOWN = 5
+
+#### magnetism: noncollinear spin, SOC ####
+#LSORBIT = T
+#SAXIS = 0 0 1
+#MAGMOM = 0.0 0.0 4.0 1000*0.0
+
+#### magnetism: constraint ####
+#I_CONSTRAINED_M = 1
+#M_CONSTR =  0.0 0.0 4.0 1000*0.0
+
+#LAMBDA =  10.0
+#RWIGS = 1.588 1.815 1.455 0.820 1.757 0.370
+
+#### magnetism: orbital moment ####
+#LORBMOM = T
+
+#### charge, wavefunction ####
+ISTART = 0
+ICHARG = 2
+LWAVE = T
+LCHARG = T
+LAECHG = T
+LMAXMIX = 6
+
+#### dos ####
+ISMEAR = 0
+SIGMA = 0.05
+#NEDOS = 301
+#EMIN = -15
+#EMAX = 10
+LORBIT = 10
+
+#### Partial Charge ####
+#LPARD = T
+#EINT = -5.0000  -4.7355
+#EINT = -4.7355 -4.0500
+
+#### vdW ####
+#IVDW = 11
+
+#### LDA+U ####
+#LDAU = T
+#LDAUTYPE = 1
+#LDAUPRINT = 1
+#LDAUL = 3 -1 -1 -1 -1 -1 -1
+#LDAUU = 0.0 0.0 0.0 0.0 0.0 0.0 0.0 
+#LDAUJ = 0.0 0.0 0.0 0.0 0.0 0.0 0.0 
+
+#### HSE ####
+#LHFCALC = T 
+#HFSCREEN = 0.2 
+#PRECFOCK = Accurate
+#ALGO = All 
+#TIME = 0.35
+
+#### wann ####
+#LWANNIER90 = .T.
+#LWRITE_UNK = .TRUE.
+
+### polarization ###
+#IDIPOL = 4
+#LMONO = T
+#LDIPOL = T
+#LCALCPOL = T
+#DIPOL = 0.5 0.5 0.5 
+
+### occupation matrix control ###
+#OCCEXT = 1
+

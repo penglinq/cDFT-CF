@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --qos=regular
+#SBATCH --nodes=1
+#SBATCH --time=0-01:00:00
+#SBATCH --constraint=gpu
+#SBATCH --mail-type=END,FAIL
+#SBATCH --output=slurm_ground_state.out
+#SBATCH -e slurm%j.err
+
+module load vasp-tpc/6.4.2-gpu
+module list
+export OMP_NUM_THREADS=16
+export OMP_PLACES=threads
+export OMP_PROC_BIND=spread
+pwd
+date
+srun hostname
+srun -n 2 -c 32 -G 2 --cpu-bind=cores --gpu-bind=none vasp_gam
+date

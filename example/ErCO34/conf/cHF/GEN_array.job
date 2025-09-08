@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --qos=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=64
+#SBATCH --time=0-06:00:00
+#SBATCH --constraint=cpu
+#SBATCH --output=run_%a/slurm_generate_state.out
+#SBATCH --mail-type=FAIL
+#SBATCH --array=0-99
+#SBATCH --exclude=nid004132
+
+export OMP_NUM_THREADS=32
+module list
+pwd
+date
+srun hostname
+cd "run_"$SLURM_ARRAY_TASK_ID
+python ./generate_state.py
+cd ../
+date
