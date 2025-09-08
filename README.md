@@ -1,4 +1,4 @@
-# stevens
+# cDFT-CF
 Calculate effective crystal field Hamiltonians ab initio for lanthanide single-ion magnets at with an accuracy comparable to CASPT2-SISO or NEVPT2-SISO and the low cost of density functional theory (DFT) calculations. 
 
 Installation
